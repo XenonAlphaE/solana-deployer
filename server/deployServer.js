@@ -1,73 +1,101 @@
+// server.js
 const express = require("express");
 const multer = require("multer");
+const cors = require("cors");
 const fs = require("fs");
 const path = require("path");
-const {
-  Connection,
-  Keypair,
-  SystemProgram,
-  sendAndConfirmTransaction,
-  Transaction,
-  BPF_LOADER_UPGRADEABLE,
-} = require("@solana/web3.js");
+const { exec } = require("child_process");
+const { Keypair, Connection, sendAndConfirmTransaction } = require("@solana/web3.js");
+const { BpfLoader, BPF_LOADER_PROGRAM_ID } = require("@solana/web3.js");
 
-const upload = multer({ dest: "uploads/" });
 const app = express();
-const port = 10001;
+const PORT = 10001;
+const KEYSTORE_DIR = path.join(process.cwd(), "keystore");
+const PROGRAM_DIR = path.join(process.cwd(), "programs");
 
+app.use(cors());
 app.use(express.json());
-app.use(express.static("public"));
+app.use(express.urlencoded({ extended: true }));
 
-app.post("/deploy", upload.single("program"), async (req, res) => {
+// Ensure folders exist
+fs.mkdirSync(KEYSTORE_DIR, { recursive: true });
+fs.mkdirSync(PROGRAM_DIR, { recursive: true });
+
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, PROGRAM_DIR),
+  filename: (req, file, cb) => cb(null, file.originalname),
+});
+const upload = multer({ storage });
+
+// Upload .so file
+app.post("/api/upload", upload.single("program"), (req, res) => {
+  return res.json({ filename: req.file.filename });
+});
+
+// List uploaded .so files
+app.get("/api/programs", (req, res) => {
+  const files = fs.readdirSync(PROGRAM_DIR).filter(f => f.endsWith(".so"));
+  return res.json({ files });
+});
+
+// List keystores
+app.get("/api/keystores", (req, res) => {
+  const keys = fs.readdirSync(KEYSTORE_DIR).filter(f => f.endsWith(".json"));
+  return res.json({ keys });
+});
+
+// Create new keypair
+app.post("/api/keystore", (req, res) => {
+  const { name } = req.body;
+  if (!name) return res.status(400).json({ error: "Name is required" });
+  const kp = Keypair.generate();
+  fs.writeFileSync(
+    path.join(KEYSTORE_DIR, `${name}.json`),
+    JSON.stringify(Array.from(kp.secretKey))
+  );
+  res.json({ message: "Keypair created", pubkey: kp.publicKey.toBase58() });
+});
+
+// Deploy program
+app.post("/api/deploy", async (req, res) => {
+  const { signerFile, programFile } = req.body;
+  if (!signerFile || !programFile) return res.status(400).json({ error: "Missing params" });
+
+  const connection = new Connection("https://api.devnet.solana.com", "confirmed");
+
+  const signerPath = path.join(KEYSTORE_DIR, signerFile);
+  const programPath = path.join(PROGRAM_DIR, programFile);
+
+  if (!fs.existsSync(signerPath) || !fs.existsSync(programPath)) {
+    return res.status(400).json({ error: "Missing signer or program file" });
+  }
+
+  const signerSecret = new Uint8Array(JSON.parse(fs.readFileSync(signerPath)));
+  const signer = Keypair.fromSecretKey(signerSecret);
+
+  const programKeypair = Keypair.generate();
+  const programData = fs.readFileSync(programPath);
+
   try {
-    const { signerKeypair, programKeypair } = req.body;
-    const soFile = req.file;
-
-    if (!signerKeypair || !programKeypair || !soFile) {
-      return res.status(400).json({ error: "Missing required fields" });
-    }
-
-    const signer = Keypair.fromSecretKey(Uint8Array.from(JSON.parse(signerKeypair)));
-    const programKey = Keypair.fromSecretKey(Uint8Array.from(JSON.parse(programKeypair)));
-
-    const connection = new Connection("https://api.devnet.solana.com", "confirmed");
-    const programId = programKey.publicKey;
-
-    const programBuffer = fs.readFileSync(soFile.path);
-    const rentExempt = await connection.getMinimumBalanceForRentExemption(programBuffer.length);
-
-    const programAccount = Keypair.generate();
-
-    const tx = new Transaction().add(
-      SystemProgram.createAccount({
-        fromPubkey: signer.publicKey,
-        newAccountPubkey: programId,
-        lamports: rentExempt,
-        space: programBuffer.length,
-        programId: BPF_LOADER_UPGRADEABLE,
-      }),
-      {
-        keys: [
-          { pubkey: programId, isSigner: true, isWritable: true },
-          { pubkey: signer.publicKey, isSigner: true, isWritable: false },
-        ],
-        programId: BPF_LOADER_UPGRADEABLE,
-        data: programBuffer,
-      }
+    const tx = await BpfLoader.load(
+      connection,
+      signer,
+      programKeypair,
+      programData,
+      BPF_LOADER_PROGRAM_ID
     );
 
-    console.log("Sending deploy transaction...");
-    await sendAndConfirmTransaction(connection, tx, [signer, programKey]);
-
-    res.json({ success: true, programId: programId.toBase58() });
-  } catch (e) {
-    console.error("Deploy error:", e);
-    res.status(500).json({ error: e.message });
-  } finally {
-    if (req.file) fs.unlinkSync(req.file.path);
+    return res.json({
+      message: "Deployed successfully",
+      tx: tx,
+      programId: programKeypair.publicKey.toBase58(),
+    });
+  } catch (err) {
+    console.error("Deployment failed", err);
+    return res.status(500).json({ error: "Deployment failed", details: err.message });
   }
 });
 
-app.listen(port, () => {
-  console.log(`Solana deploy server listening at http://localhost:${port}`);
+app.listen(PORT, () => {
+  console.log(`Server listening on http://localhost:${PORT}`);
 });
