@@ -1,0 +1,20 @@
+{
+  "name": "solana-deployer",
+  "version": "1.0.0",
+  "main": "deployServer.js",
+  "scripts": {
+    "start": "concurrently \"npm run server\" \"npm run client\"",
+    "client": "cd client && npm start",
+    "server": "node server/deployServer.js"
+  },
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "@solana/web3.js": "^1.98.4",
+    "concurrently": "^9.2.0",
+    "cross-env": "^10.0.0",
+    "express": "^5.1.0",
+    "multer": "^2.0.2"
+  }
+}
