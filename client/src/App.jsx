@@ -3,6 +3,7 @@ import API from './api';
 
 function App() {
   const [soFile, setSoFile] = useState(null);
+  const [programIdFile, setProgramIdFile] = useState(null);
   const [keyFile, setKeyFile] = useState(null);
   const [programFile, setProgramFile] = useState(null);
 
@@ -22,7 +23,7 @@ function App() {
       API.get("/api/programs"),
       API.get("/api/keystores")
     ]);
-
+    debugger
     setAvailablePrograms(progRes.data ?? []);
     setAvailableKeys(keyRes.data);
   };
@@ -33,12 +34,13 @@ function App() {
 
   const handleUploadSo = async () => {
     if (!soFile) return alert("Select .so file");
+    if (!programIdFile) return alert("Select .json file");
 
     const formData = new FormData();
     formData.append("program", soFile);
-    formData.append("name", soFile.name);
+    formData.append("keystore", programIdFile);
 
-    await API.post("/api/upload-program", formData);
+    await API.post("/api/program", formData);
     await loadLists();
     alert("✅ Program uploaded");
   };
@@ -50,7 +52,7 @@ function App() {
     formData.append("key", keyFile);
     formData.append("name", keyFile.name);
 
-    await API.post("/api/upload-key", formData);
+    await API.post("/api/keystore", formData);
     await loadLists();
     alert("✅ Key uploaded");
   };
@@ -83,6 +85,8 @@ function App() {
 
       <h4>Upload .so file</h4>
       <input type="file" accept=".so" onChange={e => setSoFile(e.target.files[0])} />
+      <h4>Upload .JSON program id file</h4>
+      <input type="file" accept=".json" onChange={e => setProgramIdFile(e.target.files[0])} />
       <button onClick={handleUploadSo}>Upload Program</button>
 
       <h4>Upload Keypair (.json)</h4>
@@ -90,20 +94,6 @@ function App() {
       <button onClick={handleUploadKey}>Upload Keypair</button>
 
       <hr />
-
-      <div>
-        <label>Select Program:</label>
-        <select
-          value={selectedProgram}
-          onChange={e => setSelectedProgram(e.target.value)}
-        >
-          <option value="">-- Select --</option>
-          {availablePrograms?.map(file => (
-            <option key={file} value={file}>{file}</option>
-          ))}
-        </select>
-      </div>
-
       <div>
         <label>Select Signer Key:</label>
         <select
@@ -116,18 +106,29 @@ function App() {
           ))}
         </select>
       </div>
-
-      <div>
-        <label>Select Program Key:</label>
+     
+       <div>
+        <label>Select Program:</label>
         <select
-          value={selectedProgramKey}
-          onChange={e => setSelectedProgramKey(e.target.value)}
+          value={selectedProgram?.name || ""}
+          onChange={e => {
+            const prog = availablePrograms.find(p => p.name === e.target.value);
+            setSelectedProgram(prog || null);
+          }}
         >
           <option value="">-- Select --</option>
-          {availableKeys.map(file => (
-            <option key={file} value={file}>{file}</option>
+          {availablePrograms.map(p => (
+            <option key={p.name} value={p.name}>
+              {p.name} ({p.program}, {p.keystore})
+            </option>
           ))}
         </select>
+      </div>
+
+      <div>
+        <label>Program Key (auto from selection):</label>
+        <input type="text" value={selectedProgram?.keystore || ""} readOnly />
+        {selectedProgram?.publicKey}
       </div>
 
       <button onClick={handleDeploy} style={{ marginTop: 10 }}>
