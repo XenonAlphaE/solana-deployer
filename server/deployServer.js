@@ -35,13 +35,13 @@ app.post("/api/upload", upload.single("program"), (req, res) => {
 // List uploaded .so files
 app.get("/api/programs", (req, res) => {
   const files = fs.readdirSync(PROGRAM_DIR).filter(f => f.endsWith(".so"));
-  return res.json({ files });
+  return res.json([...files]);
 });
 
 // List keystores
 app.get("/api/keystores", (req, res) => {
   const keys = fs.readdirSync(KEYSTORE_DIR).filter(f => f.endsWith(".json"));
-  return res.json({ keys });
+  return res.json([...keys]);
 });
 
 // Create new keypair
@@ -58,7 +58,7 @@ app.post("/api/keystore", (req, res) => {
 
 // Deploy program
 app.post("/api/deploy", async (req, res) => {
-  const { signerFile, programFile } = req.body;
+  const { signerFile, programFile, preview } = req.body;
   if (!signerFile || !programFile) return res.status(400).json({ error: "Missing params" });
 
   const connection = new Connection("https://api.devnet.solana.com", "confirmed");
@@ -75,6 +75,27 @@ app.post("/api/deploy", async (req, res) => {
 
   const programKeypair = Keypair.generate();
   const programData = fs.readFileSync(programPath);
+
+  if (preview) {
+    // Do estimation only, no deploy
+    const programData = fs.readFileSync(programPath);
+    const rentExemptLamports = await connection.getMinimumBalanceForRentExemption(programData.length);
+    const lamportsPerSignature = (await connection.getFeeForMessage(
+      (new Transaction()).compileMessage()
+    )).value;
+
+    const estimatedTxCount = Math.ceil(programData.length / 900);
+    const estimatedTxFees = estimatedTxCount * lamportsPerSignature;
+    const totalLamports = rentExemptLamports + estimatedTxFees;
+
+    return res.json({
+      programSize: programData.length,
+      rentExemptLamports,
+      estimatedTxFees,
+      totalSol: totalLamports / LAMPORTS_PER_SOL,
+    });
+  }
+
 
   try {
     const tx = await BpfLoader.load(
