@@ -10,6 +10,7 @@ const {
   PublicKey,
   Transaction,
   SystemProgram,
+  LAMPORTS_PER_SOL
 } = require("@solana/web3.js");
 
 const BPF_LOADER_UPGRADEABLE_PROGRAM_ID = new PublicKey(
@@ -138,10 +139,28 @@ app.get("/api/programs", (req, res) => {
 });
 
 
-// List keystores
 app.get("/api/keystores", (req, res) => {
-  const keys = fs.readdirSync(KEYSTORE_DIR).filter(f => f.endsWith(".json"));
-  return res.json([...keys]);
+  try {
+    const keys = fs.readdirSync(KEYSTORE_DIR).filter(f => f.endsWith(".json"));
+
+    const result = keys.map(filename => {
+      const filepath = path.join(KEYSTORE_DIR, filename);
+      const raw = JSON.parse(fs.readFileSync(filepath, "utf8"));
+
+      // Solana keystore is usually just an array of secret key bytes
+      const keypair = Keypair.fromSecretKey(new Uint8Array(raw));
+      const pubkey = keypair.publicKey.toBase58();
+
+      return {
+        filename,
+        publicKey: pubkey,
+      };
+    });
+
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 app.post("/api/generate-payer", (req, res) => {
@@ -181,6 +200,83 @@ app.post("/api/generate-payer", (req, res) => {
 
 
 // Deploy program
+
+// --- Preview deploy status ---
+app.post("/api/deploy/preview", async (req, res) => {
+  const { signerFile, programFile, programId, rpcUrl } = req.body;
+
+  if (!signerFile || !programFile) {
+    return res.status(400).json({ error: "Missing params" });
+  }
+
+  const signerPath = path.join(KEYSTORE_DIR, signerFile);
+  const programPath = path.join(PROGRAM_DIR, programFile);
+
+  if (!fs.existsSync(signerPath) || !fs.existsSync(programPath)) {
+    return res.status(400).json({ error: "Missing signer or program file" });
+  }
+
+  // --- Allow custom RPC or fallback ---
+  const endpoint = rpcUrl || "https://api.devnet.solana.com";
+  const connection = new Connection(endpoint, "confirmed");
+
+  try {
+    // Load signer
+    const signerSecret = new Uint8Array(JSON.parse(fs.readFileSync(signerPath)));
+    const signer = Keypair.fromSecretKey(signerSecret);
+
+    // Check signer balance
+    const balanceLamports = await connection.getBalance(signer.publicKey);
+
+    // Load program file
+    const programData = fs.readFileSync(programPath);
+    const programSize = programData.length;
+
+    // Rent-exempt minimum
+    const rentExemptLamports = await connection.getMinimumBalanceForRentExemption(programSize);
+
+    // Transaction fee estimate
+    const { blockhash } = await connection.getLatestBlockhash();
+    const dummyTx = new Transaction({
+      feePayer: signer.publicKey,
+      recentBlockhash: blockhash,
+    });
+    const lamportsPerSignature = (await connection.getFeeForMessage(
+      dummyTx.compileMessage()
+    )).value;
+
+    const estimatedTxCount = Math.ceil(programSize / 900); // ~900 bytes per tx
+    const estimatedTxFees = estimatedTxCount * lamportsPerSignature;
+    const totalLamports = rentExemptLamports + estimatedTxFees;
+
+    // If programId provided → check if already deployed
+    let alreadyDeployed = false;
+    if (programId) {
+      try {
+        const accInfo = await connection.getAccountInfo(new PublicKey(programId));
+        alreadyDeployed = !!accInfo;
+      } catch (e) {
+        console.warn("Invalid programId or not deployed yet");
+      }
+    }
+
+    return res.json({
+      rpcUrl: endpoint,
+      signer: signer.publicKey.toBase58(),
+      balanceSol: balanceLamports / LAMPORTS_PER_SOL,
+      programSize,
+      rentExemptLamports,
+      estimatedTxFees,
+      totalSolRequired: totalLamports / LAMPORTS_PER_SOL,
+      alreadyDeployed,
+    });
+  } catch (err) {
+    console.error("Preview failed", err);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+
 app.post("/api/deploy", async (req, res) => {
   const { signerFile, programFile, preview } = req.body;
   if (!signerFile || !programFile) return res.status(400).json({ error: "Missing params" });

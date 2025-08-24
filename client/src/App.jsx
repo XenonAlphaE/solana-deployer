@@ -5,68 +5,63 @@ import { useAppContext } from "./appcontext";
 import KeyManager from "./KeyManager";
 
 function App() {
+  const { availablePrograms, loadLists, selectedSignerKey } = useAppContext();
 
-  const {availablePrograms, loadLists} = useAppContext();
+  const [selectedProgram, setSelectedProgram] = useState(null);
+  const [rpc, setRpc] = useState("devnet");
+  const [customRpc, setCustomRpc] = useState("");
+  const [previewResult, setPreviewResult] = useState(null);
+  const [loading, setLoading] = useState(false);
 
-  const [selectedProgram, setSelectedProgram] = useState("");
-  const [selectedSignerKey, setSelectedSignerKey] = useState("");
-  const [selectedProgramKey, setSelectedProgramKey] = useState("");
+  useEffect(() => {
+    loadLists();
+  }, []);
 
-  const [logs, setLogs] = useState("");
-  const [programId, setProgramId] = useState("");
-
-  useEffect( () => {
-    loadLists()
-  }, [])
-
-  // const handleGenerateKey = async () => {
-  //   if (!payerName) return alert("Please enter a name for the new payer.");
-
-  //   const res = await fetch("/api/generate-payer", {
-  //     method: "POST",
-  //     headers: { "Content-Type": "application/json" },
-  //     body: JSON.stringify({ name: payerName }),
-  //   });
-
-  //   const data = await res.json();
-  //   if (data.error) return alert("Error: " + data.error);
-
-  //   alert(`Generated new payer: ${data.name}\nPublic Key: ${data.publicKey}`);
-  // };
-
-  const handleDeploy = async () => {
-    if (!selectedProgram || !selectedSignerKey || !selectedProgramKey) {
-      alert("Select program and keypairs");
+  const handlePreview = async () => {
+    if (!selectedProgram || !selectedSignerKey) {
+      alert("Select a signer and program first!");
       return;
     }
 
-    const formData = new FormData();
-    formData.append("programName", selectedProgram);
-    formData.append("signerName", selectedSignerKey);
-    formData.append("programKeyName", selectedProgramKey);
-
-    setLogs("Deploying...");
+    setLoading(true);
+    setPreviewResult(null);
 
     try {
-      const res = await API.post("/api/deploy", formData);
-      setLogs("✅ Deployed!");
-      setProgramId(res.data.programId);
+      // resolve rpc endpoint
+      let rpcUrl = "";
+      if (rpc === "devnet") rpcUrl = "https://api.devnet.solana.com";
+      else if (rpc === "testnet") rpcUrl = "https://api.testnet.solana.com";
+      else if (rpc === "mainnet") rpcUrl = "https://api.mainnet-beta.solana.com";
+      else if (rpc === "custom") rpcUrl = customRpc;
+      debugger
+      const res = await API.post("/api/deploy/preview", {
+        signerFile: selectedSignerKey,
+        programFile: selectedProgram.binary,
+        rpcUrl,
+        programId: selectedProgram.publicKey, // 👈 add this
+
+      });
+
+      setPreviewResult(res.data);
     } catch (err) {
-      setLogs("❌ Deploy failed: " + err?.response?.data?.error || err.message);
+      console.error("Preview failed", err);
+      alert("Preview failed: " + (err.response?.data?.error || err.message));
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
-    <div style={{ padding: 20, maxWidth: 600 }}>
-      <h2>Solana Program Deployer</h2>
+    <div style={{ padding: 20, maxWidth: 700 }}>
+      <h2>⚡ Solana Program Deployer</h2>
 
       {/* Upload existing keypair */}
-      <UploadPanel/>
-
-
+      <UploadPanel />
       <hr />
       <KeyManager />
-     
+      <hr />
+
+      {/* Program selection */}
       <div>
         <label>Select Program:</label>
         <select
@@ -87,26 +82,48 @@ function App() {
 
       <div>
         <label>Program Key (auto from selection):</label>
-        <input type="text" value={selectedProgram?.keystore || ""} readOnly />
         {selectedProgram?.publicKey}
       </div>
 
-      <button onClick={handleDeploy} style={{ marginTop: 10 }}>
-        🚀 Deploy to Devnet
+      {/* RPC selection */}
+      <div style={{ marginTop: 10 }}>
+        <label>RPC Cluster: </label>
+        <select value={rpc} onChange={e => setRpc(e.target.value)}>
+          <option value="devnet">Devnet</option>
+          <option value="testnet">Testnet</option>
+          <option value="mainnet">Mainnet</option>
+          <option value="custom">Custom</option>
+        </select>
+        {rpc === "custom" && (
+          <input
+            type="text"
+            placeholder="Enter custom RPC URL"
+            value={customRpc}
+            onChange={e => setCustomRpc(e.target.value)}
+            style={{ marginLeft: 10, width: "60%" }}
+          />
+        )}
+      </div>
+      
+
+      {/* Preview button */}
+      <button onClick={handlePreview} style={{ marginTop: 15 }}>
+        {loading ? "⏳ Checking..." : "🚀 Preview to Deploy"}
       </button>
 
-      <pre style={{ marginTop: 20 }}>{logs}</pre>
-      {programId && (
-        <p>
-          View on explorer:{" "}
-          <a
-            href={`https://explorer.solana.com/address/${programId}?cluster=devnet`}
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            {programId}
-          </a>
-        </p>
+      {/* Show preview results */}
+      {previewResult && (
+        <div style={{ marginTop: 20, padding: 15, border: "1px solid #ccc", borderRadius: 8 }}>
+          <h4>🔍 Preview Result</h4>
+          <p><b>RPC:</b> {previewResult.rpcUrl}</p>
+          <p><b>Signer:</b> {previewResult.signer}</p>
+          <p><b>Balance:</b> {previewResult.balanceSol} SOL</p>
+          <p><b>Program Size:</b> {previewResult.programSize} bytes</p>
+          <p><b>Rent Exempt:</b> {previewResult.rentExemptLamports} lamports</p>
+          <p><b>Estimated Tx Fees:</b> {previewResult.estimatedTxFees} lamports</p>
+          <p><b>Total Required:</b> {previewResult.totalSolRequired} SOL</p>
+          <p><b>Already Deployed:</b> {previewResult.alreadyDeployed ? "✅ Yes" : "❌ No"}</p>
+        </div>
       )}
     </div>
   );

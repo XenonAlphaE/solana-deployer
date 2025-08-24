@@ -64,13 +64,14 @@ export default function KeyManager() {
           onChange={e => setSelectedSignerKey(e.target.value)}
         >
           <option value="">-- Select --</option>
-          {availableKeys.map(file => (
-            <option key={file} value={file}>
-              {file}
+          {availableKeys.map(item => (
+            <option key={item.filename} value={item.filename}>
+              {item.filename} - {item.publicKey}
             </option>
           ))}
         </select>
       </div>
+      {availableKeys?.filter(x=> x.filename === selectedSignerKey)?.[0]?.publicKey}
     </div>
   );
 }
