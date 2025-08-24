@@ -1,14 +1,12 @@
 import React, { useEffect, useState } from "react";
 import API from './api';
+import UploadPanel from "./UploadPanel";
+import { useAppContext } from "./appcontext";
+import KeyManager from "./KeyManager";
 
 function App() {
-  const [soFile, setSoFile] = useState(null);
-  const [programIdFile, setProgramIdFile] = useState(null);
-  const [keyFile, setKeyFile] = useState(null);
-  const [programFile, setProgramFile] = useState(null);
 
-  const [availablePrograms, setAvailablePrograms] = useState([]);
-  const [availableKeys, setAvailableKeys] = useState([]);
+  const {availablePrograms, loadLists} = useAppContext();
 
   const [selectedProgram, setSelectedProgram] = useState("");
   const [selectedSignerKey, setSelectedSignerKey] = useState("");
@@ -17,45 +15,24 @@ function App() {
   const [logs, setLogs] = useState("");
   const [programId, setProgramId] = useState("");
 
-  // Fetch list of uploaded programs and keys
-  const loadLists = async () => {
-    const [progRes, keyRes] = await Promise.all([
-      API.get("/api/programs"),
-      API.get("/api/keystores")
-    ]);
-    debugger
-    setAvailablePrograms(progRes.data ?? []);
-    setAvailableKeys(keyRes.data);
-  };
+  useEffect( () => {
+    loadLists()
+  }, [])
 
-  useEffect(() => {
-    loadLists();
-  }, []);
+  // const handleGenerateKey = async () => {
+  //   if (!payerName) return alert("Please enter a name for the new payer.");
 
-  const handleUploadSo = async () => {
-    if (!soFile) return alert("Select .so file");
-    if (!programIdFile) return alert("Select .json file");
+  //   const res = await fetch("/api/generate-payer", {
+  //     method: "POST",
+  //     headers: { "Content-Type": "application/json" },
+  //     body: JSON.stringify({ name: payerName }),
+  //   });
 
-    const formData = new FormData();
-    formData.append("program", soFile);
-    formData.append("keystore", programIdFile);
+  //   const data = await res.json();
+  //   if (data.error) return alert("Error: " + data.error);
 
-    await API.post("/api/program", formData);
-    await loadLists();
-    alert("✅ Program uploaded");
-  };
-
-  const handleUploadKey = async () => {
-    if (!keyFile) return alert("Select keypair file");
-
-    const formData = new FormData();
-    formData.append("key", keyFile);
-    formData.append("name", keyFile.name);
-
-    await API.post("/api/keystore", formData);
-    await loadLists();
-    alert("✅ Key uploaded");
-  };
+  //   alert(`Generated new payer: ${data.name}\nPublic Key: ${data.publicKey}`);
+  // };
 
   const handleDeploy = async () => {
     if (!selectedProgram || !selectedSignerKey || !selectedProgramKey) {
@@ -83,31 +60,14 @@ function App() {
     <div style={{ padding: 20, maxWidth: 600 }}>
       <h2>Solana Program Deployer</h2>
 
-      <h4>Upload .so file</h4>
-      <input type="file" accept=".so" onChange={e => setSoFile(e.target.files[0])} />
-      <h4>Upload .JSON program id file</h4>
-      <input type="file" accept=".json" onChange={e => setProgramIdFile(e.target.files[0])} />
-      <button onClick={handleUploadSo}>Upload Program</button>
+      {/* Upload existing keypair */}
+      <UploadPanel/>
 
-      <h4>Upload Keypair (.json)</h4>
-      <input type="file" accept=".json" onChange={e => setKeyFile(e.target.files[0])} />
-      <button onClick={handleUploadKey}>Upload Keypair</button>
 
       <hr />
-      <div>
-        <label>Select Signer Key:</label>
-        <select
-          value={selectedSignerKey}
-          onChange={e => setSelectedSignerKey(e.target.value)}
-        >
-          <option value="">-- Select --</option>
-          {availableKeys.map(file => (
-            <option key={file} value={file}>{file}</option>
-          ))}
-        </select>
-      </div>
+      <KeyManager />
      
-       <div>
+      <div>
         <label>Select Program:</label>
         <select
           value={selectedProgram?.name || ""}

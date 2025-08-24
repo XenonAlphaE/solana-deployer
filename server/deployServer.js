@@ -44,11 +44,16 @@ const programStorage = multer.diskStorage({
       // Save the .so file with its original name
       req.soBaseName = path.parse(file.originalname).name; // remember base name
       cb(null, file.originalname);
+
+    } else if (file.originalname.endsWith("-keypair.json")) {
+      const base = req.soBaseName || path.parse(file.originalname).name;
+      cb(null, base + "-keypair.json");
     } else if (file.originalname.endsWith(".json")) {
-      // Force JSON to use the .so basename
+      // This could be IDL
       const base = req.soBaseName || path.parse(file.originalname).name;
       cb(null, base + ".json");
-    } else {
+    } 
+    else {
       cb(null, file.originalname); // fallback
     }
   },
@@ -57,7 +62,8 @@ const programStorage = multer.diskStorage({
 // Uploader that accepts 2 fields: program + keystore
 const uploadProgramAndKey = multer({ storage: programStorage }).fields([
   { name: "program", maxCount: 1 },   // expects .so file
-  { name: "keystore", maxCount: 1 }   // expects .json file
+  { name: "keystore", maxCount: 1 },   // expects .json file
+  { name: "idl", maxCount: 1 },        // Anchor IDL .json
 ]);
 
 
@@ -68,7 +74,7 @@ app.post("/api/keystore", uploadKeystore.single("keystore"), (req, res) => {
 
 // Upload program keypair (.json)
 app.post("/api/program", uploadProgramAndKey, (req, res) => {
-if (!req.files.program || !req.files.keystore) {
+  if (!req.files.program || !req.files.keystore) {
     return res.status(400).json({ error: "Both program (.so) and keystore (.json) are required" });
   }
 
@@ -76,57 +82,103 @@ if (!req.files.program || !req.files.keystore) {
     message: "Upload successful",
     files: {
       program: req.files.program[0].filename,
-      keystore: req.files.keystore[0].filename
+      keystore: req.files.keystore?.[0]?.filename,
+      idl: req.files.idl?.[0]?.filename,
     }
   });
+
 });
 
 
 // List uploaded .so files
+
 app.get("/api/programs", (req, res) => {
   try {
-    const keys = fs.readdirSync(PROGRAM_DIR).filter(f => f.endsWith(".json"));
-    const programs = fs.readdirSync(PROGRAM_DIR).filter(f => f.endsWith(".so"));
+    const files = fs.readdirSync(PROGRAM_DIR);
 
-    // Normalize to basename without extension
-    const keyNames = keys.map(f => path.basename(f, ".json"));
-    const progNames = programs.map(f => path.basename(f, ".so"));
+    // Collect by extension
+    const binaries = files.filter(f => f.endsWith(".so"));
+    const programIds = files.filter(f => f.endsWith(".json") && !f.endsWith("-keypair.json"));
+    const keypairs = files.filter(f => f.endsWith("-keypair.json"));
 
-    // Find intersection
-    const pairs = keyNames
-      .filter(name => progNames.includes(name))
-      .map(name => {
-        const keystorePath = path.join(PROGRAM_DIR, `${name}.json`);
-        let publicKey = null;
+    // Normalize basenames
+    const binNames = binaries.map(f => path.basename(f, ".so"));
+    const idNames = programIds.map(f => path.basename(f, ".json"));
+    const keyNames = keypairs.map(f => path.basename(f, "-keypair.json"));
 
-        try {
-          const secret = JSON.parse(fs.readFileSync(keystorePath, "utf8"));
-          const kp = Keypair.fromSecretKey(new Uint8Array(secret));
-          publicKey = kp.publicKey.toBase58();
-        } catch (err) {
-          console.error(`Failed to extract public key for ${name}:`, err);
-        }
+    // Find intersection of all 3
+    const common = binNames.filter(n => idNames.includes(n) && keyNames.includes(n));
 
-        return {
-          name,
-          keystore: `${name}.json`,
-          program: `${name}.so`,
-          publicKey,
-        };
-      });
+    const rows = common.map(name => {
+      const keypairPath = path.join(PROGRAM_DIR, `${name}-keypair.json`);
+      let publicKey = null;
 
-    return res.json(pairs);
+      try {
+        const secret = JSON.parse(fs.readFileSync(keypairPath, "utf8"));
+        const kp = Keypair.fromSecretKey(new Uint8Array(secret));
+        publicKey = kp.publicKey.toBase58();
+      } catch (err) {
+        console.error(`Failed to extract public key for ${name}:`, err);
+      }
+
+      return {
+        name,
+        binary: `${name}.so`,
+        programId: `${name}.json`,
+        keypair: `${name}-keypair.json`,
+        publicKey,
+      };
+    });
+
+    return res.json(rows);
   } catch (err) {
     console.error("Error listing programs:", err);
     return res.status(500).json({ error: "Failed to list programs" });
   }
 });
 
+
 // List keystores
 app.get("/api/keystores", (req, res) => {
   const keys = fs.readdirSync(KEYSTORE_DIR).filter(f => f.endsWith(".json"));
   return res.json([...keys]);
 });
+
+app.post("/api/generate-payer", (req, res) => {
+  try {
+    const { name } = req.body;
+
+    if (!name) {
+      return res.status(400).json({ error: "Missing required field: name" });
+    }
+
+    // Sanitize filename: remove spaces and only allow alphanumerics + underscore
+    const safeName = name.replace(/[^a-zA-Z0-9_-]/g, "");
+
+    const payer = Keypair.generate();
+    const secret = Array.from(payer.secretKey);
+
+    // Force filename to use given name
+    const fileName = `${safeName}.json`;
+    const filePath = path.join(KEYSTORE_DIR, fileName);
+
+    if (fs.existsSync(filePath)) {
+      return res.status(400).json({ error: `File ${fileName} already exists` });
+    }
+
+    fs.writeFileSync(filePath, JSON.stringify(secret));
+
+    return res.json({
+      name: safeName,
+      publicKey: payer.publicKey.toBase58(),
+      keystore: fileName,
+    });
+  } catch (err) {
+    console.error("Failed to generate payer:", err);
+    return res.status(500).json({ error: "Failed to generate payer" });
+  }
+});
+
 
 // Deploy program
 app.post("/api/deploy", async (req, res) => {
