@@ -20,6 +20,9 @@ export default function UploadPanel() {
         await API.post("/api/program", formData);
         alert("✅ Program uploaded");
         await loadLists?.();
+        setSoFile(null)
+        setProgramIdFile(null)
+        setIdlFile(null)
     };
 
     return (

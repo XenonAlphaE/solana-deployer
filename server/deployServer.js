@@ -10,13 +10,17 @@ const {
   PublicKey,
   Transaction,
   SystemProgram,
-  LAMPORTS_PER_SOL
+  LAMPORTS_PER_SOL,
+  BPF_LOADER_PROGRAM_ID,
+  BpfLoader,
+  ComputeBudgetProgram,
 } = require("@solana/web3.js");
 
+const deploymentRoutes = require('../routes/deploymentRoutes')
+// This is the official upgradeable loader program ID
 const BPF_LOADER_UPGRADEABLE_PROGRAM_ID = new PublicKey(
   "BPFLoaderUpgradeab1e11111111111111111111111"
 );
-
 const app = express();
 const PORT = 10001;
 const KEYSTORE_DIR = path.join(process.cwd(),  "uploads", "keystores");
@@ -25,6 +29,7 @@ const PROGRAM_DIR = path.join(process.cwd(), "uploads","programs");
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.use('/api/deployment', deploymentRoutes);
 
 // Ensure folders exist
 fs.mkdirSync(KEYSTORE_DIR, { recursive: true });
@@ -138,6 +143,43 @@ app.get("/api/programs", (req, res) => {
   }
 });
 
+// Delete a program by name (removes .so, -keypair.json, and .json files)
+app.delete("/api/programs/:name", (req, res) => {
+  const { name } = req.params;
+
+  if (!name) {
+    return res.status(400).json({ error: "Missing program name" });
+  }
+
+  try {
+    const filesToDelete = [
+      path.join(PROGRAM_DIR, `${name}.so`),
+      path.join(PROGRAM_DIR, `${name}-keypair.json`),
+      path.join(PROGRAM_DIR, `${name}.json`),
+    ];
+
+    let deleted = [];
+    filesToDelete.forEach((filePath) => {
+      if (fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
+        deleted.push(path.basename(filePath));
+      }
+    });
+
+    if (deleted.length === 0) {
+      return res.status(404).json({ error: `No files found for program "${name}"` });
+    }
+
+    return res.json({
+      message: `Program "${name}" deleted successfully`,
+      deleted,
+    });
+  } catch (err) {
+    console.error("Failed to delete program:", err);
+    return res.status(500).json({ error: "Failed to delete program" });
+  }
+});
+
 
 app.get("/api/keystores", (req, res) => {
   try {
@@ -199,11 +241,9 @@ app.post("/api/generate-payer", (req, res) => {
 });
 
 
-// Deploy program
-
 // --- Preview deploy status ---
 app.post("/api/deploy/preview", async (req, res) => {
-  const { signerFile, programFile, programId, rpcUrl } = req.body;
+  const { signerFile, programFile, programId, rpcUrl, feeMultiplier } = req.body;
 
   if (!signerFile || !programFile) {
     return res.status(400).json({ error: "Missing params" });
@@ -216,7 +256,6 @@ app.post("/api/deploy/preview", async (req, res) => {
     return res.status(400).json({ error: "Missing signer or program file" });
   }
 
-  // --- Allow custom RPC or fallback ---
   const endpoint = rpcUrl || "https://api.devnet.solana.com";
   const connection = new Connection(endpoint, "confirmed");
 
@@ -225,17 +264,19 @@ app.post("/api/deploy/preview", async (req, res) => {
     const signerSecret = new Uint8Array(JSON.parse(fs.readFileSync(signerPath)));
     const signer = Keypair.fromSecretKey(signerSecret);
 
-    // Check signer balance
     const balanceLamports = await connection.getBalance(signer.publicKey);
 
-    // Load program file
+    // Program size
     const programData = fs.readFileSync(programPath);
     const programSize = programData.length;
+
+    // Get prioritization fee reference (cannot be simulated, it's just network state)
+    const prioritizationFees = await connection.getRecentPrioritizationFees([]);
 
     // Rent-exempt minimum
     const rentExemptLamports = await connection.getMinimumBalanceForRentExemption(programSize);
 
-    // Transaction fee estimate
+    // Fee per sig
     const { blockhash } = await connection.getLatestBlockhash();
     const dummyTx = new Transaction({
       feePayer: signer.publicKey,
@@ -245,11 +286,14 @@ app.post("/api/deploy/preview", async (req, res) => {
       dummyTx.compileMessage()
     )).value;
 
-    const estimatedTxCount = Math.ceil(programSize / 900); // ~900 bytes per tx
-    const estimatedTxFees = estimatedTxCount * lamportsPerSignature;
+    // --- Fee multiplier (default 1x) ---
+    const multiplier = Math.max(1, Number(feeMultiplier) || 1);
+    const adjustedLamportsPerSignature = lamportsPerSignature * multiplier;
+
+    const estimatedTxCount = Math.ceil(programSize / 900);
+    const estimatedTxFees = estimatedTxCount * adjustedLamportsPerSignature;
     const totalLamports = rentExemptLamports + estimatedTxFees;
 
-    // If programId provided → check if already deployed
     let alreadyDeployed = false;
     if (programId) {
       try {
@@ -266,9 +310,13 @@ app.post("/api/deploy/preview", async (req, res) => {
       balanceSol: balanceLamports / LAMPORTS_PER_SOL,
       programSize,
       rentExemptLamports,
+      lamportsPerSignature,
+      multiplier,
       estimatedTxFees,
       totalSolRequired: totalLamports / LAMPORTS_PER_SOL,
       alreadyDeployed,
+      prioritizationFeeReference: prioritizationFees, // this is real, affects actual deploy
+
     });
   } catch (err) {
     console.error("Preview failed", err);
@@ -277,79 +325,6 @@ app.post("/api/deploy/preview", async (req, res) => {
 });
 
 
-app.post("/api/deploy", async (req, res) => {
-  const { signerFile, programFile, preview } = req.body;
-  if (!signerFile || !programFile) return res.status(400).json({ error: "Missing params" });
-
-  const connection = new Connection("https://api.devnet.solana.com", "confirmed");
-
-  const signerPath = path.join(KEYSTORE_DIR, signerFile);
-  const programPath = path.join(PROGRAM_DIR, programFile);
-
-  if (!fs.existsSync(signerPath) || !fs.existsSync(programPath)) {
-    return res.status(400).json({ error: "Missing signer or program file" });
-  }
-
-  const signerSecret = new Uint8Array(JSON.parse(fs.readFileSync(signerPath)));
-  const signer = Keypair.fromSecretKey(signerSecret);
-
-  const programKeypair = Keypair.generate();
-  const programData = fs.readFileSync(programPath);
-
-  if (preview) {
-    // Do estimation only, no deploy
-    const programData = fs.readFileSync(programPath);
-    const rentExemptLamports = await connection.getMinimumBalanceForRentExemption(programData.length);
-    const lamportsPerSignature = (await connection.getFeeForMessage(
-      (new Transaction()).compileMessage()
-    )).value;
-
-    const estimatedTxCount = Math.ceil(programData.length / 900);
-    const estimatedTxFees = estimatedTxCount * lamportsPerSignature;
-    const totalLamports = rentExemptLamports + estimatedTxFees;
-
-    return res.json({
-      programSize: programData.length,
-      rentExemptLamports,
-      estimatedTxFees,
-      totalSol: totalLamports / LAMPORTS_PER_SOL,
-    });
-  }
-
-
-  try {
-      // Build instruction: set new authority = null
-      const ix = {
-        keys: [
-          { pubkey: programPubkey, isSigner: false, isWritable: true },
-          { pubkey: signer.publicKey, isSigner: true, isWritable: false }, // current authority
-        ],
-        programId: BPF_LOADER_UPGRADEABLE_PROGRAM_ID,
-        data: Buffer.from([4, 0, 0, 0]), // "SetAuthority" instruction layout
-      };
-      
-
-
-      const tx = new Transaction().add(ix);
-      tx.feePayer = signer.publicKey;
-      tx.recentBlockhash = (await connection.getLatestBlockhash()).blockhash;
-
-      // Sign + send with Phantom
-      const signedTx = await signer.signTransaction(tx);
-      const sig = await connection.sendRawTransaction(signedTx.serialize());
-      await connection.confirmTransaction(sig, "confirmed");
-
-
-      return res.json({
-        message: "Deployed successfully",
-        tx: tx,
-        programId: programKeypair.publicKey.toBase58(),
-      });
-  } catch (err) {
-    console.error("Deployment failed", err);
-    return res.status(500).json({ error: "Deployment failed", details: err.message });
-  }
-});
 
 app.listen(PORT, () => {
   console.log(`Server listening on http://localhost:${PORT}`);
