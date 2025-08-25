@@ -34,7 +34,7 @@ const ProgramManager = () => {
       {availablePrograms.length === 0 ? (
         <p>No programs uploaded yet.</p>
       ) : (
-        <table border="1" cellPadding="6" cellSpacing="0" style={{ width: "100%" }}>
+        <table border="1" style={{ width: "100%" }}>
           <thead>
             <tr>
               <th>Select</th>
@@ -46,7 +46,7 @@ const ProgramManager = () => {
             </tr>
           </thead>
           <tbody>
-            {availablePrograms.map((prog) => (
+            {availablePrograms?.map((prog) => (
               <tr
                 key={prog.name}
                 style={{

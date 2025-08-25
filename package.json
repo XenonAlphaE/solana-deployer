@@ -12,9 +12,11 @@
   "description": "",
   "dependencies": {
     "@solana/web3.js": "^1.98.4",
+    "bip39": "^3.1.0",
     "concurrently": "^9.2.0",
     "cors": "^2.8.5",
     "cross-env": "^10.0.0",
+    "ed25519-hd-key": "^1.3.0",
     "express": "^5.1.0",
     "multer": "^2.0.2"
   }

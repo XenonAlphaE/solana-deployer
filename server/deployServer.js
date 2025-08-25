@@ -143,6 +143,19 @@ app.get("/api/programs", (req, res) => {
   }
 });
 
+
+app.get("/api/idl/:program", (req, res) => {
+  const { program } = req.params;
+  const idlPath = path.join(PROGRAM_DIR, `${program}.json`);
+  try {
+    const idl = JSON.parse(fs.readFileSync(idlPath, "utf8"));
+    res.json(idl);
+  } catch (err) {
+    res.status(404).json({ error: "IDL not found" });
+  }
+});
+
+
 // Delete a program by name (removes .so, -keypair.json, and .json files)
 app.delete("/api/programs/:name", (req, res) => {
   const { name } = req.params;

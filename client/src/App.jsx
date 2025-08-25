@@ -4,6 +4,7 @@ import UploadPanel from "./UploadPanel";
 import { useAppContext } from "./appcontext";
 import KeyManager from "./KeyManager";
 import ProgramManager from "./ProgramManager";
+import ProgramMethods from "./ProgramMethods";
 
 function App() {
   const { availablePrograms, loadLists, selectedSignerKey , selectedProgram, setSelectedProgram} = useAppContext();
@@ -175,7 +176,7 @@ function App() {
   </summary>
   <div style={{ padding: 15, border: "1px solid green", borderRadius: 8, marginTop: 10 }}>
     <h3>Deployment Reference</h3>
-<table border="1" cellspacing="0" cellpadding="6" >
+<table border="1"  >
   <thead >
     <tr>
       <th>Tier</th>
@@ -252,7 +253,7 @@ function App() {
   </div>
 </details>
 
-     
+    <ProgramMethods />
 
     </div>
   );
