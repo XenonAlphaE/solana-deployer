@@ -6,6 +6,9 @@ import { Program, AnchorProvider, web3 } from "@project-serum/anchor";
 import API from "../api";
 import { LAMPORTS_PER_SOL, PublicKey } from "@solana/web3.js";
 
+function toCamelCase(name) {
+  return name[0].toLowerCase() + name.slice(1);
+}
 
 export function useProgram(programId, programName) {
   const { publicKey, connected } = useWallet();
@@ -15,6 +18,7 @@ export function useProgram(programId, programName) {
   const [asyncCalculatedAccounts, setAsyncCalculatedAccounts] = useState({});
   const [programInfo, setProgramInfo] = useState(null);
   const anchorWallet =  useAnchorWallet();
+  const [allAccounts, setAllAccounts] = useState([]);
 
   // Anchor/React code
   useEffect(() => {
@@ -65,6 +69,48 @@ export function useProgram(programId, programName) {
 
     loadProgramInfo();
   }, [program, idl, connection]);
+
+  // Fetch all accounts owned by the program
+  useEffect(() => {
+    if (!program) return;
+
+    const fetchAllAccounts = async () => {
+      try {
+        // Anchor convenience: fetch all accounts of a specific IDL type
+        // If your IDL has defined accounts (like "state", "userAccount", etc.)
+        const decodedAccounts = {};
+        if (idl?.accounts) {
+          for (const acc of idl.accounts) {
+            const camelName = toCamelCase(acc.name); // normalize
+            try {
+              const all = await program.account[camelName].all();
+              decodedAccounts[acc.name] = all.map(a => ({
+                pubkey: a.publicKey.toBase58(),
+                data: a.account,
+              }));
+            } catch (err) {
+              console.warn(`Failed to fetch accounts for ${acc.name}`, err);
+            }
+          }
+        }
+
+        // Raw fallback: all accounts owned by this program
+        const rawAccounts = await connection.getProgramAccounts(program.programId);
+        const formattedRaw = rawAccounts.map(acc => ({
+          pubkey: acc.pubkey.toBase58(),
+          data: acc.account.data.toString("base64"),
+          lamports: acc.account.lamports,
+        }));
+
+        setAllAccounts({ decoded: decodedAccounts, raw: formattedRaw });
+      } catch (err) {
+        console.error("Failed to fetch program accounts", err);
+      }
+    };
+
+    fetchAllAccounts();
+  }, [program, idl, connection]);
+
 
   useEffect(() => {
     if (!programId) return;
@@ -159,6 +205,6 @@ export function useProgram(programId, programName) {
     connected,
     programInfo,  // 👈 new
     calculatedAccounts, // <-- added
-
+    allAccounts
   };
 }

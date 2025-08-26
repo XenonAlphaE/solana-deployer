@@ -10,7 +10,7 @@ import API from "./api";
 export default function ProgramMethods() {
   const { selectedProgram } = useAppContext();
 
-  const { program, idl, calculatedAccounts, programInfo, connected, publicKey } = useProgram(
+  const { program, idl, calculatedAccounts, programInfo,allAccounts, connected, publicKey } = useProgram(
     selectedProgram?.publicKey,
     selectedProgram?.name
   );
@@ -93,8 +93,13 @@ export default function ProgramMethods() {
   return (
     <div style={{ marginTop: 20 }}>
       <h3>Methods in {selectedProgram.name}</h3>
+      
       {JSON.stringify(calculatedAccounts)}
+      <hr />
       {JSON.stringify(programInfo)}
+      <hr />
+      {JSON.stringify(allAccounts)}
+      <hr />
       <ul>
         {idl.instructions.map((ix, i) => (
           <li key={i} style={{ marginBottom: "20px" }}>
