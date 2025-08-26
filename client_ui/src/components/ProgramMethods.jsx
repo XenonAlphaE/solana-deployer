@@ -1,6 +1,8 @@
+"use client";
 import React, { useEffect, useState } from "react";
 import { useAppContext } from "./appcontext";
 import API from "./api";
+import CustomWalletButton from "./solana/CustomWalletButton";
 
 const ProgramMethods = () => {
   const { selectedProgram } = useAppContext();

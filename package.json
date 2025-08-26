@@ -4,7 +4,7 @@
   "main": "deployServer.js",
   "scripts": {
     "start": "concurrently \"npm run server\" \"npm run client\"",
-    "client": "cd client && npm start",
+    "client": "cd client_ui && npm run dev",
     "server": "node server/deployServer.js"
   },
   "author": "",

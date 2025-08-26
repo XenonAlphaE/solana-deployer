@@ -1,3 +1,4 @@
+"use client";
 import React, { useState } from "react";
 import API from "./api";
 import { useAppContext } from "./appcontext";

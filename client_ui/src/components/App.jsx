@@ -1,3 +1,5 @@
+"use client";
+
 import React, { useEffect, useState } from "react";
 import API from './api';
 import UploadPanel from "./UploadPanel";
@@ -5,6 +7,7 @@ import { useAppContext } from "./appcontext";
 import KeyManager from "./KeyManager";
 import ProgramManager from "./ProgramManager";
 import ProgramMethods from "./ProgramMethods";
+import { CustomWalletButton } from "./solana/CustomWalletButton";
 
 function App() {
   const { availablePrograms, loadLists, selectedSignerKey , selectedProgram, setSelectedProgram} = useAppContext();
@@ -253,6 +256,7 @@ function App() {
   </div>
 </details>
 
+      <CustomWalletButton/>
     <ProgramMethods />
 
     </div>
