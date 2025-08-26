@@ -2,13 +2,15 @@
 import React, { useEffect, useState } from "react";
 import { useProgram } from "@/components/solana/useProgram";
 import { useAppContext } from "./appcontext";
+import { PublicKey } from "@solana/web3.js";
+
 import CustomWalletButton from "./solana/CustomWalletButton";
 import API from "./api";
 
 export default function ProgramMethods() {
   const { selectedProgram } = useAppContext();
 
-  const { program, idl, connected, publicKey } = useProgram(
+  const { program, idl, calculatedAccounts, programInfo, connected, publicKey } = useProgram(
     selectedProgram?.publicKey,
     selectedProgram?.name
   );
@@ -56,7 +58,19 @@ export default function ProgramMethods() {
       setTxStatus("Sending transaction...");
 
       const ixInputs = inputs[ix.name];
-      const argValues = ix.args.map((arg) => ixInputs.args[arg.name]);
+      const argValues = ix.args.map((arg) => {
+        const raw = ixInputs.args[arg.name];
+
+        if (arg.type?.vec === "publicKey") {
+          return raw.map((pk) => new PublicKey(pk));
+        }
+
+        if (arg.type === "publicKey") {
+          return new PublicKey(raw);
+        }
+
+        return raw;
+      });
       const accounts = {};
       ix.accounts.forEach((acc) => {
         accounts[acc.name] = ixInputs.accounts[acc.name];
@@ -79,6 +93,8 @@ export default function ProgramMethods() {
   return (
     <div style={{ marginTop: 20 }}>
       <h3>Methods in {selectedProgram.name}</h3>
+      {JSON.stringify(calculatedAccounts)}
+      {JSON.stringify(programInfo)}
       <ul>
         {idl.instructions.map((ix, i) => (
           <li key={i} style={{ marginBottom: "20px" }}>
@@ -99,19 +115,63 @@ export default function ProgramMethods() {
                 </div>
               ))}
               <h4>Arguments:</h4>
-              {ix.args.map((arg) => (
-                <div key={arg.name} style={{ marginBottom: 4 }}>
-                  <label>{arg.name}: </label>
-                  <input
-                    type="text"
-                    value={inputs[ix.name]?.args[arg.name] || ""}
-                    onChange={(e) =>
-                      handleChange(ix.name, "args", arg.name, e.target.value)
-                    }
-                    placeholder={JSON.stringify(arg.type)}
-                  />
-                </div>
-              ))}
+              {ix.args.map((arg) => {
+                const value = inputs[ix.name]?.args[arg.name] || 
+                              (arg.type.vec ? [] : "");
+
+                // Handle vec<publicKey>
+                if (arg.type?.vec === "publicKey") {
+                  return (
+                    <div key={arg.name} style={{ marginBottom: 8 }}>
+                      <label>{arg.name} (array of pubkeys): </label>
+                      {(value || []).map((pubkey, idx) => (
+                        <div key={idx} style={{ display: "flex", marginBottom: 4 }}>
+                          <input
+                            type="text"
+                            value={pubkey}
+                            onChange={(e) => {
+                              const newArr = [...value];
+                              newArr[idx] = e.target.value;
+                              handleChange(ix.name, "args", arg.name, newArr);
+                            }}
+                            placeholder="PublicKey"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const newArr = value.filter((_, i) => i !== idx);
+                              handleChange(ix.name, "args", arg.name, newArr);
+                            }}
+                          >
+                            ❌
+                          </button>
+                        </div>
+                      ))}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          handleChange(ix.name, "args", arg.name, [...value, ""]);
+                        }}
+                      >
+                        ➕ Add pubkey
+                      </button>
+                    </div>
+                  );
+                }
+
+                // Fallback to normal single input
+                return (
+                  <div key={arg.name} style={{ marginBottom: 4 }}>
+                    <label>{arg.name}: </label>
+                    <input
+                      type="text"
+                      value={value}
+                      onChange={(e) => handleChange(ix.name, "args", arg.name, e.target.value)}
+                      placeholder={JSON.stringify(arg.type)}
+                    />
+                  </div>
+                );
+              })}
               <button onClick={() => handleCallMethod(ix)}>Call Method</button>
             </div>
           </li>
