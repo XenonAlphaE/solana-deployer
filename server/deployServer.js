@@ -17,6 +17,7 @@ const {
 } = require("@solana/web3.js");
 
 const deploymentRoutes = require('../routes/deploymentRoutes')
+const splTokenRoutes = require('../routes/splTokenRoutes')
 // This is the official upgradeable loader program ID
 const BPF_LOADER_UPGRADEABLE_PROGRAM_ID = new PublicKey(
   "BPFLoaderUpgradeab1e11111111111111111111111"
@@ -30,6 +31,7 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use('/api/deployment', deploymentRoutes);
+app.use('/api/spl', splTokenRoutes);
 
 // Ensure folders exist
 fs.mkdirSync(KEYSTORE_DIR, { recursive: true });

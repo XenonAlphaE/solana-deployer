@@ -7,9 +7,10 @@ export default function KeyManager() {
   const [keyFile, setKeyFile] = useState(null);
   const [payerName, setPayerName] = useState("");
 
-  const { availableKeys, selectedSignerKey, setSelectedSignerKey, loadLists } = useAppContext()
+  const { availableKeys, selectedSignerKey, setSelectedSignerKey, loadLists } =
+    useAppContext();
 
-  // Upload an existing keypair
+  // Upload existing keypair
   const handleUploadKey = async () => {
     if (!keyFile) return alert("Please select a file first.");
     const formData = new FormData();
@@ -21,7 +22,7 @@ export default function KeyManager() {
     loadLists?.();
   };
 
-  // Generate a new payer keypair
+  // Generate new payer keypair
   const handleGenerateKey = async () => {
     if (!payerName) return alert("Please enter a name for the new payer.");
 
@@ -41,7 +42,11 @@ export default function KeyManager() {
       {/* Upload existing keypair */}
       <div>
         <h5>Upload Keypair (.json)</h5>
-        <input type="file" accept=".json" onChange={e => setKeyFile(e.target.files[0])} />
+        <input
+          type="file"
+          accept=".json"
+          onChange={(e) => setKeyFile(e.target.files[0])}
+        />
         <button onClick={handleUploadKey}>Upload Keypair</button>
       </div>
 
@@ -52,27 +57,61 @@ export default function KeyManager() {
           type="text"
           placeholder="Enter name (e.g. mypayer)"
           value={payerName}
-          onChange={e => setPayerName(e.target.value)}
+          onChange={(e) => setPayerName(e.target.value)}
         />
         <button onClick={handleGenerateKey}>Generate Payer</button>
       </div>
 
-      {/* List of available signer keys */}
+      {/* Table of available keys */}
       <div>
-        <label>Select Signer Key:</label>
-        <select
-          value={selectedSignerKey}
-          onChange={e => setSelectedSignerKey(e.target.value)}
-        >
-          <option value="">-- Select --</option>
-          {availableKeys.map(item => (
-            <option key={item.filename} value={item.filename}>
-              {item.filename} - {item.publicKey}
-            </option>
-          ))}
-        </select>
+        <h5>Select Signer Key</h5>
+        <table style={{ width: "100%", borderCollapse: "collapse" }}>
+          <thead>
+            <tr>
+              <th style={{ border: "1px solid #ddd", padding: "8px" }}>Select</th>
+              <th style={{ border: "1px solid #ddd", padding: "8px" }}>Filename</th>
+              <th style={{ border: "1px solid #ddd", padding: "8px" }}>Public Key</th>
+            </tr>
+          </thead>
+          <tbody>
+            {availableKeys.map((item) => (
+              <tr key={item.filename}>
+                <td
+                  style={{
+                    border: "1px solid #ddd",
+                    padding: "8px",
+                    textAlign: "center",
+                  }}
+                >
+                  <input
+                    type="radio"
+                    name="selectedKey"
+                    value={item.filename}
+                    checked={selectedSignerKey === item.filename}
+                    onChange={() => setSelectedSignerKey(item.filename)}
+                  />
+                </td>
+                <td style={{ border: "1px solid #ddd", padding: "8px" }}>
+                  {item.filename}
+                </td>
+                <td style={{ border: "1px solid #ddd", padding: "8px" }}>
+                  {item.publicKey}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
-      {availableKeys?.filter(x=> x.filename === selectedSignerKey)?.[0]?.publicKey}
+
+      {selectedSignerKey && (
+        <p>
+          Selected Public Key:{" "}
+          {
+            availableKeys.find((x) => x.filename === selectedSignerKey)
+              ?.publicKey
+          }
+        </p>
+      )}
     </div>
   );
 }
