@@ -7,7 +7,7 @@ import { useAppContext } from "./appcontext";
 import KeyManager from "./KeyManager";
 import ProgramManager from "./ProgramManager";
 import ProgramMethods from "./ProgramMethods";
-import { CustomWalletButton } from "./solana/CustomWalletButton";
+import CustomWalletButton from "./solana/CustomWalletButton";
 
 function App() {
   const { availablePrograms, loadLists, selectedSignerKey , selectedProgram, setSelectedProgram} = useAppContext();
