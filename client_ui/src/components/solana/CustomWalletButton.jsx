@@ -1,17 +1,15 @@
 "use client";
 import React, { useState, useCallback } from "react";
-import {
-  useWallet,
-  useWalletModal,
-} from "@solana/wallet-adapter-react";
+import { useWallet } from "@solana/wallet-adapter-react";
 
-// Basic styles for demo (you can replace with Tailwind, styled-components, etc.)
+// Basic styles (replace with Tailwind/styled-components if you want)
 const styles = {
   overlay: {
     position: "fixed",
     top: 0, left: 0, right: 0, bottom: 0,
     background: "rgba(0,0,0,0.5)",
-    display: "flex", alignItems: "center", justifyContent: "center"
+    display: "flex", alignItems: "center", justifyContent: "center",
+    zIndex: 50,
   },
   modal: {
     background: "#fff",
@@ -31,6 +29,7 @@ const styles = {
   }
 };
 
+// Wallet select dialog
 const WalletDialog = ({ visible, onClose }) => {
   const { wallets, select } = useWallet();
 
@@ -57,32 +56,71 @@ const WalletDialog = ({ visible, onClose }) => {
   );
 };
 
+// Connected wallet dialog (copy + disconnect)
+const ConnectedDialog = ({ visible, onClose }) => {
+  const { publicKey, disconnect } = useWallet();
+
+  if (!visible || !publicKey) return null;
+
+  const shortAddress =
+    publicKey.toBase58().slice(0, 4) +
+    "..." +
+    publicKey.toBase58().slice(-4);
+
+  const copyAddress = async () => {
+    await navigator.clipboard.writeText(publicKey.toBase58());
+    alert("Address copied to clipboard!");
+  };
+
+  return (
+    <div style={styles.overlay} onClick={onClose}>
+      <div style={styles.modal} onClick={(e) => e.stopPropagation()}>
+        <h3>Wallet Connected</h3>
+        <p>{shortAddress}</p>
+        <button style={styles.walletBtn} onClick={copyAddress}>
+          Copy Address
+        </button>
+        <button
+          style={{ ...styles.walletBtn, color: "red" }}
+          onClick={() => {
+            disconnect();
+            onClose();
+          }}
+        >
+          Disconnect
+        </button>
+      </div>
+    </div>
+  );
+};
+
 export default function CustomWalletButton() {
-  const { publicKey, connected, disconnect } = useWallet();
-  const [modalVisible, setModalVisible] = useState(false);
-
-  const handleConnect = useCallback(() => {
-    setModalVisible(true);
-  }, []);
-
-  const handleDisconnect = useCallback(() => {
-    disconnect();
-  }, [disconnect]);
+  const { publicKey, connected } = useWallet();
+  const [walletDialogVisible, setWalletDialogVisible] = useState(false);
+  const [connectedDialogVisible, setConnectedDialogVisible] = useState(false);
 
   return (
     <>
       {connected ? (
-        <button onClick={handleDisconnect}>
-          Disconnect ({publicKey.toBase58().slice(0, 4)}...
-          {publicKey.toBase58().slice(-4)})
+        <button onClick={() => setConnectedDialogVisible(true)}>
+          {publicKey.toBase58().slice(0, 4)}...
+          {publicKey.toBase58().slice(-4)}
         </button>
       ) : (
-        <button onClick={handleConnect}>Connect Wallet</button>
+        <button onClick={() => setWalletDialogVisible(true)}>
+          Connect Wallet
+        </button>
       )}
+
+      {/* dialogs */}
       <WalletDialog
-        visible={modalVisible}
-        onClose={() => setModalVisible(false)}
+        visible={walletDialogVisible}
+        onClose={() => setWalletDialogVisible(false)}
+      />
+      <ConnectedDialog
+        visible={connectedDialogVisible}
+        onClose={() => setConnectedDialogVisible(false)}
       />
     </>
   );
-};
+}
