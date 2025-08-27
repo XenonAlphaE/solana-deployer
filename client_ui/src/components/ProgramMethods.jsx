@@ -6,6 +6,7 @@ import { PublicKey } from "@solana/web3.js";
 
 import CustomWalletButton from "./solana/CustomWalletButton";
 import API from "./api";
+import { parseIdlValue } from "./solana/inputUtil";
 
 export default function ProgramMethods() {
   const { selectedProgram } = useAppContext();
@@ -60,17 +61,11 @@ export default function ProgramMethods() {
       const ixInputs = inputs[ix.name];
       const argValues = ix.args.map((arg) => {
         const raw = ixInputs.args[arg.name];
+        debugger
+        return parseIdlValue(raw, arg['type']);
 
-        if (arg.type?.vec === "publicKey") {
-          return raw.map((pk) => new PublicKey(pk));
-        }
-
-        if (arg.type === "publicKey") {
-          return new PublicKey(raw);
-        }
-
-        return raw;
       });
+      debugger
       const accounts = {};
       ix.accounts.forEach((acc) => {
         accounts[acc.name] = ixInputs.accounts[acc.name];

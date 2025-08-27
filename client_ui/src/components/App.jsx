@@ -9,6 +9,7 @@ import ProgramManager from "./ProgramManager";
 import ProgramMethods from "./ProgramMethods";
 import CustomWalletButton from "./solana/CustomWalletButton";
 import MintTokenForm from "./MinToken";
+import PDACalculator from "./solana/PdaCalculation";
 
 function App() {
   const { availablePrograms, loadLists, selectedSignerKey , selectedProgram, setSelectedProgram} = useAppContext();
@@ -259,6 +260,7 @@ function App() {
 
       <CustomWalletButton/>
       
+      <PDACalculator />
       <ProgramMethods />
 
     </div>
