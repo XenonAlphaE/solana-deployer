@@ -1,34 +1,54 @@
 "use client";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { PublicKey } from "@solana/web3.js";
+export const TOKEN_PROGRAM_ID = new PublicKey('TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA');
+
+/** Address of the SPL Token 2022 program */
+export const TOKEN_2022_PROGRAM_ID = new PublicKey('TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb');
+
+/** Address of the SPL Associated Token Account program */
+export const ASSOCIATED_TOKEN_PROGRAM_ID = new PublicKey('ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL');
+
+
+function toPaddedSymbol(symbolStr, padChar = '_', length = 8) {
+  const buf = Buffer.alloc(length, padChar); // fill with padChar
+  buf.write(symbolStr); // write string into buffer
+  return buf;
+}
+
 
 // ---- PDA recipes ----
 const PDA_RECIPES = {
-  buyer: ({ buyerPubkey, tokenSymbol }) => [
+  state: () => [
+    Buffer.from("state"),
+  ],
+  tokenInfo:({ tokenSymbol }) => [
+    toPaddedSymbol(tokenSymbol),
+  ],
+  buyerInfoPda:({ tokenSymbol, buyerPubkey }) => [
     Buffer.from("buyer___"),
-    Buffer.from(tokenSymbol.padEnd(8, "\0")),
+    toPaddedSymbol(tokenSymbol),
     new PublicKey(buyerPubkey).toBuffer(),
   ],
-  vault: ({ tokenMint }) => [
-    Buffer.from("vault"),
-    new PublicKey(tokenMint).toBuffer(),
+  buyerAta:({ mint, buyerPubkey }) => [
+      new PublicKey(buyerPubkey).toBuffer(),
+      TOKEN_PROGRAM_ID.toBuffer(),
+      new PublicKey(mint).toBuffer(),
   ],
-  config: () => [Buffer.from("config")],
+  vaultAta: ({ mint, vaultPubkey }) => [
+      new PublicKey(vaultPubkey).toBuffer(),
+      TOKEN_PROGRAM_ID.toBuffer(),
+      new PublicKey(mint).toBuffer(),
+  ],
 };
-
-// helper to derive PDA
-function derivePda(type, params, programId) {
-  const recipe = PDA_RECIPES[type];
-  if (!recipe) throw new Error(`Unknown PDA type: ${type}`);
-  const seeds = recipe(params);
-  return PublicKey.findProgramAddressSync(seeds, new PublicKey(programId));
-}
 
 // define inputs required per PDA
 const PDA_PARAMS = {
-  buyer: ["buyerPubkey", "tokenSymbol"],
-  vault: ["tokenMint"],
-  config: [],
+  state: [],
+  tokenInfo: ["tokenSymbol"],
+  buyerInfoPda: ["tokenSymbol", "buyerPubkey"],
+  buyerAta:["mint", "buyerPubkey"],
+  vaultAta:["mint", "vaultPubkey"],
 };
 
 export default function PdaCalculator() {
@@ -36,6 +56,8 @@ export default function PdaCalculator() {
   const [inputs, setInputs] = useState({});
   const [results, setResults] = useState([]);
 
+  const [feedpricePda, setFeedpricePda] = useState()
+  
   const handleChange = (field, value) => {
     setInputs((prev) => ({ ...prev, [field]: value }));
   };
@@ -44,8 +66,19 @@ export default function PdaCalculator() {
     try {
       const programKey = new PublicKey(programId);
       const newResults = Object.keys(PDA_RECIPES).map((type) => {
-        const [pda, bump] = derivePda(type, inputs, programKey);
-        return { type, pda: pda.toBase58(), bump };
+          const seeds = PDA_RECIPES[type](inputs);
+
+          // handle ATAs
+          if (type.toLowerCase().includes("ata")) {
+            const [pda, bump] = PublicKey.findProgramAddressSync(
+              seeds,
+              ASSOCIATED_TOKEN_PROGRAM_ID
+            );
+            return { type, pda: pda.toBase58(), bump };
+          }
+
+          const [pda, bump] = PublicKey.findProgramAddressSync(seeds, programKey);
+          return { type, pda: pda.toBase58(), bump };
       });
       setResults(newResults);
     } catch (e) {
@@ -92,7 +125,9 @@ export default function PdaCalculator() {
       >
         Calculate All PDAs
       </button>
-
+      <div>
+        Pyth Pricefeed address {feedpricePda}
+      </div>
       {results.length > 0 && (
         <table className="border-collapse border border-gray-400 w-full mt-4">
           <thead>

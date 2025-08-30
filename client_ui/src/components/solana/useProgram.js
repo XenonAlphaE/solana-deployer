@@ -4,7 +4,7 @@ import { useEffect, useState, useMemo } from "react";
 import { useWallet, useAnchorWallet } from "@solana/wallet-adapter-react";
 import { Program, AnchorProvider, web3 } from "@project-serum/anchor";
 import API from "../api";
-import { LAMPORTS_PER_SOL, PublicKey } from "@solana/web3.js";
+import { LAMPORTS_PER_SOL, PublicKey, SYSVAR_INSTRUCTIONS_PUBKEY } from "@solana/web3.js";
 
 function toCamelCase(name) {
   return name[0].toLowerCase() + name.slice(1);
@@ -155,7 +155,7 @@ export function useProgram(programId, programName) {
     );
     accountsMap['statePda'] = statePda
     accountsMap['systemProgram'] =  web3.SystemProgram.programId
-
+accountsMap['SYSVAR_INSTRUCTIONS_PUBKEY'] = SYSVAR_INSTRUCTIONS_PUBKEY
     return accountsMap;
   }, [idl, program, publicKey]);
 

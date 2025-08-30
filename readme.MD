@@ -31,3 +31,17 @@ solana program deploy \
   --fee-payer <FEEPAYER_KEYPAIR> \
   --url https://api.devnet.solana.com \
   <PATH_TO_PROGRAM_SO>
+
+
+pyth devnet
+rec5EKMGg6MxZYaMdyBfgwp4d5rB9T1VQH5pJv5LtFJ
+
+https://docs.pyth.network/price-feeds/contract-addresses/solana
+
+
+Crypto.SOL/USD	
+0xef0d...80b56d
+
+0xfe65...51decd
+
+7UVimf...1pjLiE

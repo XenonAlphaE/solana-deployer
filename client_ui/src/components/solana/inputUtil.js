@@ -11,7 +11,7 @@ export function parseIdlValue(text, typeDef) {
     switch (typeDef) {
       case "publicKey":
         return new PublicKey(text.trim());
-
+      case "i64":
       case "u64":
       case "u32":
       case "u16":
@@ -44,9 +44,9 @@ export function parseIdlValue(text, typeDef) {
 
   // Vec type: { vec: "publicKey" } or { vec: "u64" }
   if (typeDef.vec) {
+    debugger
     const innerType = typeDef.vec;
     return text
-      .split(",")
       .map((t) => parseIdlValue(t.trim(), innerType));
   }
 

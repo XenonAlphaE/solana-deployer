@@ -261,6 +261,7 @@ function App() {
       <CustomWalletButton/>
       
       <PDACalculator />
+      <hr />
       <ProgramMethods />
 
     </div>
