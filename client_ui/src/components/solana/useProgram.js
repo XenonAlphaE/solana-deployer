@@ -1,10 +1,15 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useCallback } from "react";
 import { useWallet, useAnchorWallet } from "@solana/wallet-adapter-react";
 import { Program, AnchorProvider, web3 } from "@project-serum/anchor";
-import API from "../api";
-import { LAMPORTS_PER_SOL, PublicKey, SYSVAR_INSTRUCTIONS_PUBKEY } from "@solana/web3.js";
+import bs58 from "bs58";
+import BN from "bn.js";
+import API , {OraclePriceAPI} from "../api";
+import { LAMPORTS_PER_SOL, PublicKey, SYSVAR_INSTRUCTIONS_PUBKEY,SYSVAR_CLOCK_PUBKEY,
+  Transaction,
+  Ed25519Program,
+ } from "@solana/web3.js";
 
 function toCamelCase(name) {
   return name[0].toLowerCase() + name.slice(1);
@@ -102,7 +107,7 @@ export function useProgram(programId, programName) {
           lamports: acc.account.lamports,
         }));
 
-        setAllAccounts({ decoded: decodedAccounts, raw: formattedRaw });
+        setAllAccounts({ ...decodedAccounts, raw: formattedRaw });
       } catch (err) {
         console.error("Failed to fetch program accounts", err);
       }
@@ -155,47 +160,63 @@ export function useProgram(programId, programName) {
     );
     accountsMap['statePda'] = statePda
     accountsMap['systemProgram'] =  web3.SystemProgram.programId
-accountsMap['SYSVAR_INSTRUCTIONS_PUBKEY'] = SYSVAR_INSTRUCTIONS_PUBKEY
+    accountsMap['SYSVAR_INSTRUCTIONS_PUBKEY'] = SYSVAR_INSTRUCTIONS_PUBKEY
+    accountsMap['SYSVAR_CLOCK_PUBKEY'] = SYSVAR_CLOCK_PUBKEY
     return accountsMap;
   }, [idl, program, publicKey]);
 
-  // useEffect(() => {
-  //   if (!idl || !program || !publicKey) return;
+  const sendBuyWithOracle = useCallback(
+    async ({
+      tokenSymbol,
+      amountLamports,
+      signatureData,
+      accounts,
+    }) => {
+      if (!program) throw new Error("Program not initialized");
+      debugger
+      try {
+        // 1. ed25519 verify ix
+        const ed25519Ix = Ed25519Program.createInstructionWithPublicKey({
+          publicKey: bs58.decode(signatureData?.pubkey),
+          message: new Uint8Array(signatureData?.msg),
+          signature:new Uint8Array(signatureData?.signature)
+        });
 
-  //   const loadAsyncAccounts = async () => {
-  //     const accountsMap = {};
+        // 2. program ix
+        const programIx = await program.methods
+          .buyWithSolOracle(
+            [...tokenSymbol],
+            amountLamports,
+            true,
+            new BN(signatureData?.scaledPrice),
+            new BN(signatureData?.timestamp),
+            new Uint8Array(signatureData?.signature)
+          )
+          .accounts(accounts)
+          .instruction();
 
-  //     for (const ix of idl.instructions) {
-  //       accountsMap[ix.name] = {};
+          // 3. tx build
+          const tx = new Transaction().add(ed25519Ix, programIx);
+          tx.feePayer = anchorWallet.publicKey;
+          tx.recentBlockhash = (await connection.getLatestBlockhash()).blockhash;
 
-  //       for (const acc of ix.accounts) {
-  //         // Example: account derived from on-chain state
-  //         if (acc.name === "statePda") {
-  //           const [statePda, stateBump] = await web3.PublicKey.findProgramAddress(
-  //             [Buffer.from("state")],
-  //             program.programId
-  //           );
-  //           accountsMap[ix.name][acc.name] = statePda.toBase58();
-  //         }
+          // 4. let wallet sign
+          const signedTx = await anchorWallet.signTransaction(tx);
 
-  //         // Example: ATA for a token vault
-  //         if (acc.name === "vaultUsdtAta") {
-  //           const ata = await getOrCreateAssociatedTokenAccount(
-  //             program.provider.connection,
-  //             program.provider.wallet.payer,
-  //             usdtMintAddr,
-  //             program.provider.wallet.publicKey
-  //           );
-  //           accountsMap[ix.name][acc.name] = ata.address.toBase58();
-  //         }
-  //       }
-  //     }
+          // 5. send
+          const txid = await connection.sendRawTransaction(signedTx.serialize(), {
+            skipPreflight: false,
+          });
 
-  //     setAsyncCalculatedAccounts(accountsMap);
-  //   };
+          return txid;
+      } catch (err) {
+        console.error("sendBuyWithOracle error", err);
+        throw err;
+      }
+    },
+    [program, connection, anchorWallet]
+  );
 
-  //   loadAsyncAccounts();
-  // }, [idl, program, publicKey]);
 
   return {
     program,
@@ -205,6 +226,8 @@ accountsMap['SYSVAR_INSTRUCTIONS_PUBKEY'] = SYSVAR_INSTRUCTIONS_PUBKEY
     connected,
     programInfo,  // 👈 new
     calculatedAccounts, // <-- added
-    allAccounts
+    allAccounts,
+    sendBuyWithOracle, // 👈 added
+
   };
 }

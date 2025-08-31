@@ -36,7 +36,7 @@ export default function MintTokenForm() {
   return (
     <div style={{ marginTop: 20, padding: 20, border: "1px solid #ccc", borderRadius: 8 }}>
       <h3>Mint Test Token</h3>
-      <form onSubmit={handleSubmit}>
+      <div >
         <div style={{ marginBottom: 10 }}>
           <label>Signer File: </label>
           <input
@@ -69,10 +69,10 @@ export default function MintTokenForm() {
           />
         </div>
 
-        <button type="submit" disabled={loading}>
+        <button  disabled={loading} onClick={handleSubmit}>
           {loading ? "Minting..." : "Mint Token"}
         </button>
-      </form>
+      </div>
 
       {error && <p style={{ color: "red" }}>❌ {error}</p>}
 

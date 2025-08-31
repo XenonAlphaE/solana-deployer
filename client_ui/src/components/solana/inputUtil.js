@@ -24,6 +24,13 @@ export function parseIdlValue(text, typeDef) {
       case "string":
         return text;
 
+      case "bytes":
+        // interpret hex or utf8 input
+        if (/^[0-9a-fA-F]+$/.test(text)) {
+          return Buffer.from(text, "hex");
+        }
+        return Buffer.from(text, "utf8");
+
       default:
         throw new Error("Unsupported primitive type: " + typeDef);
     }
@@ -31,6 +38,9 @@ export function parseIdlValue(text, typeDef) {
 
   // Fixed array type: { array: ["u8", 8] }
   if (typeDef.array) {
+    if (Array.isArray(text)) {
+      return text; // already array of u8
+    }
     const [innerType, len] = typeDef.array;
     if (innerType === "u8") {
       // For token symbols, pad/trim to length
