@@ -89,7 +89,7 @@ export default function CustomizedMethods() {
     ix.accounts.forEach((acc) => {
       accounts[acc.name] = ixInputs.accounts[acc.name];
     });
-
+    debugger
     return program.methods[ix.name](...argValues).accounts(accounts).rpc();
   };
 
@@ -163,8 +163,16 @@ export default function CustomizedMethods() {
     <div style={{ marginTop: 20 }}>
       <h3>Methods in {selectedProgram.name}</h3>
       <hr/>
-    {JSON.stringify(calculatedAccounts)}
-
+        <ul className="space-y-1">
+            {Object.entries(calculatedAccounts).map(([key, value]) => (
+            <li key={key}>
+                <span >{key} : </span>
+                <span >
+                {Array.isArray(value) ? `[${value.join(", ")}]` : String(value)}
+                </span>
+            </li>
+            ))}
+        </ul>      
       {JSON.stringify(programInfo)}
     <hr />
     <div>

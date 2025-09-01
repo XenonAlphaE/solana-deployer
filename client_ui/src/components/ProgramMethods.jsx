@@ -88,8 +88,18 @@ export default function ProgramMethods() {
   return (
     <div style={{ marginTop: 20 }}>
       <h3>Methods in {selectedProgram.name}</h3>
-      
-      {JSON.stringify(calculatedAccounts)}
+            {JSON.stringify(calculatedAccounts)}
+
+      <ul className="space-y-1">
+        {Object.entries(calculatedAccounts).map(([key, value]) => (
+          <li key={key}>
+            <span >{key}</span>
+            <span >
+              {Array.isArray(value) ? `[${value.join(", ")}]` : String(value)}
+            </span>
+          </li>
+        ))}
+      </ul>      
       <hr />
       {JSON.stringify(programInfo)}
       <hr />

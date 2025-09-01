@@ -12,7 +12,7 @@ function toPaddedSymbol(symbolStr, padChar = '_', length = 8) {
 }
 
 const PDA_DEFAULTS = {
-  programId: 'BV46e6tV7xw4h9cHTX7N3SZG8osbL4ZQY4xPJBpyTEV8',
+  programId: 'FwwSJsfbSifKcAwNcwkAS17ty1oL5XX8sjWTMgxcKYNG',
   tokenInfo: { tokenSymbol: "HYPE" },
   buyerAta: {
     mint: "GcSQxdgYUhh4EJTcGRdd3wJ9MugLtLh2JKLCdy2AyPJn",

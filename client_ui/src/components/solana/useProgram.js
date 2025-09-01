@@ -11,6 +11,17 @@ import { LAMPORTS_PER_SOL, PublicKey, SYSVAR_INSTRUCTIONS_PUBKEY,SYSVAR_CLOCK_PU
   Ed25519Program,
  } from "@solana/web3.js";
 
+ const {
+  createMint,
+  getOrCreateAssociatedTokenAccount,
+  getAccount,
+  getAssociatedTokenAddress,
+  mintTo,
+  getMint,
+  ASSOCIATED_TOKEN_PROGRAM_ID,
+  TOKEN_PROGRAM_ID
+} = require("@solana/spl-token");
+
 function toCamelCase(name) {
   return name[0].toLowerCase() + name.slice(1);
 }
@@ -158,10 +169,15 @@ export function useProgram(programId, programName) {
       [Buffer.from("state")],
       program.programId
     );
+    accountsMap['programId'] = program?.programId
     accountsMap['statePda'] = statePda
-    accountsMap['systemProgram'] =  web3.SystemProgram.programId
+    accountsMap['SYSTEM_PROGRAM'] =  web3.SystemProgram.programId
+    accountsMap['TOKEN_PROGRAM'] =  TOKEN_PROGRAM_ID
     accountsMap['SYSVAR_INSTRUCTIONS_PUBKEY'] = SYSVAR_INSTRUCTIONS_PUBKEY
+    accountsMap['ASSOCIATED_TOKEN_PROGRAM_ID'] = ASSOCIATED_TOKEN_PROGRAM_ID
     accountsMap['SYSVAR_CLOCK_PUBKEY'] = SYSVAR_CLOCK_PUBKEY
+    accountsMap['USDT_MINT'] = 'GcSQxdgYUhh4EJTcGRdd3wJ9MugLtLh2JKLCdy2AyPJn'
+    accountsMap['USDT_MINT'] = 'GcSQxdgYUhh4EJTcGRdd3wJ9MugLtLh2JKLCdy2AyPJn'
     return accountsMap;
   }, [idl, program, publicKey]);
 
@@ -177,7 +193,7 @@ export function useProgram(programId, programName) {
       try {
         // 1. ed25519 verify ix
         const ed25519Ix = Ed25519Program.createInstructionWithPublicKey({
-          publicKey: bs58.decode(signatureData?.pubkey),
+          publicKey: bs58.decode(signatureData?.pubkeyBase58),
           message: new Uint8Array(signatureData?.msg),
           signature:new Uint8Array(signatureData?.signature)
         });

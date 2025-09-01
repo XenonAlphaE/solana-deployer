@@ -38,10 +38,25 @@ export function parseIdlValue(text, typeDef) {
 
   // Fixed array type: { array: ["u8", 8] }
   if (typeDef.array) {
+    debugger
+    const [innerType, len] = typeDef.array;
     if (Array.isArray(text)) {
       return text; // already array of u8
     }
-    const [innerType, len] = typeDef.array;
+    // If it's a string representation of an array, e.g. "[1,2,3]"
+    if (typeof text === "string" && text.trim().startsWith("[")) {
+      try {
+        const arr = JSON.parse(text);
+        if (!Array.isArray(arr)) throw new Error("Not an array");
+        return arr.map((v) => {
+          if (typeof v !== "number") throw new Error("Array must contain numbers");
+          return v;
+        });
+      } catch (e) {
+        throw new Error("Invalid array string: " + e.message);
+      }
+    }
+    
     if (innerType === "u8") {
       // For token symbols, pad/trim to length
       const buf = Buffer.alloc(len);
