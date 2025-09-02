@@ -9,6 +9,7 @@ import API , {OraclePriceAPI} from "../api";
 import { LAMPORTS_PER_SOL, PublicKey, SYSVAR_INSTRUCTIONS_PUBKEY,SYSVAR_CLOCK_PUBKEY,
   Transaction,
   Ed25519Program,
+  SYSTEM_PROGRAM
  } from "@solana/web3.js";
 
  const {
@@ -65,18 +66,6 @@ export function useProgram(programId, programName) {
           [programId.toBytes()],
           new PublicKey("BPFLoaderUpgradeab1e11111111111111111111111")
         );
-
-        // const programDataAccount = await connection.getAccountInfo(programDataAddr);
-        // if (programDataAccount) {
-        //   // The authority pubkey is stored at offset 4 + 32 (skip enum + slot)
-        //   const buf = programDataAccount.data;
-        //   const AUTHORITY_OFFSET = 4 + 8 + 32; // tag(4) + slot(8) + programId(32)
-        //   const authorityPubkey = new PublicKey(
-        //     buf.slice(AUTHORITY_OFFSET, AUTHORITY_OFFSET + 32)
-        //   );
-        //   info.authority = authorityPubkey.toBase58();
-        // }
-
         setProgramInfo(info);
       } catch (err) {
         console.error("Failed to load program info", err);
