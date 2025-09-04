@@ -48,18 +48,20 @@ const uploadKeystore = multer({ storage: keystoreStorage });
 const programStorage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, PROGRAM_DIR),
   filename: (req, file, cb) => {
+     // Prefer user-provided name if present
+    const baseName =
+      req.body?.name?.trim() ||
+      req.soBaseName ||
+      path.parse(file.originalname).name;
+
     if (file.originalname.endsWith(".so")) {
-      // Save the .so file with its original name
-      req.soBaseName = path.parse(file.originalname).name; // remember base name
-      cb(null, file.originalname);
+      cb(null,`${baseName}.so`)
 
     } else if (file.originalname.endsWith("-keypair.json")) {
-      const base = req.soBaseName || path.parse(file.originalname).name;
-      cb(null, base + "-keypair.json");
+      cb(null, `${baseName}-keypair.json`);
     } else if (file.originalname.endsWith(".json")) {
       // This could be IDL
-      const base = req.soBaseName || path.parse(file.originalname).name;
-      cb(null, base + ".json");
+      cb(null, `${baseName}.json`);
     } 
     else {
       cb(null, file.originalname); // fallback

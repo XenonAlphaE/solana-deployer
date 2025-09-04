@@ -2,6 +2,8 @@
 
 import { useEffect, useState, useMemo, useCallback } from "react";
 import { useWallet, useAnchorWallet } from "@solana/wallet-adapter-react";
+import { useConnection } from '@solana/wallet-adapter-react';
+
 import { Program, AnchorProvider, web3 } from "@project-serum/anchor";
 import bs58 from "bs58";
 import BN from "bn.js";
@@ -31,7 +33,7 @@ export function useProgram(programId, programName) {
   const { publicKey, connected } = useWallet();
   const [program, setProgram] = useState(null);
   const [idl, setIdl] = useState(null);
-  const [connection] = useState(() => new web3.Connection(web3.clusterApiUrl("devnet")));
+  const { connection } = useConnection();
   const [asyncCalculatedAccounts, setAsyncCalculatedAccounts] = useState({});
   const [programInfo, setProgramInfo] = useState(null);
   const anchorWallet =  useAnchorWallet();
@@ -54,12 +56,12 @@ export function useProgram(programId, programName) {
         };
 
         // Get program account
-        const accountInfo = await connection.getAccountInfo(programId);
-        if (accountInfo) {
-          info.executable = accountInfo.executable;
-          info.lamports = accountInfo.lamports / LAMPORTS_PER_SOL; // balance in SOL
-          info.owner = accountInfo.owner.toBase58();
-        }
+        // const accountInfo = await connection.getAccountInfo(programId);
+        // if (accountInfo) {
+        //   info.executable = accountInfo.executable;
+        //   info.lamports = accountInfo.lamports / LAMPORTS_PER_SOL; // balance in SOL
+        //   info.owner = accountInfo.owner.toBase58();
+        // }
 
         // Derive ProgramData PDA for upgradeable program
         const [programDataAddr] = PublicKey.findProgramAddressSync(

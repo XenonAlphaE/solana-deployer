@@ -81,6 +81,7 @@ export default function CustomizedMethods() {
   };
 
   const callGenericMethod = async (ix, ixInputs) => {
+    debugger
     const argValues = ix.args.map((arg) =>
       parseIdlValue(ixInputs.args[arg.name], arg["type"])
     );
