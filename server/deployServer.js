@@ -57,9 +57,9 @@ const uploadProgramAndKey = multer({ storage: multer.memoryStorage()  }).fields(
 
 
 // Upload payer keystore
-app.post("/api/keystore", uploadKeystore.single("keystore"), (req, res) => {
-  res.json({ message: "Payer keystore uploaded", file: req.file });
-});
+// app.post("/api/keystore", uploadKeystore.single("keystore"), (req, res) => {
+//   res.json({ message: "Payer keystore uploaded", file: req.file });
+// });
 
 // Upload program keypair (.json)
 app.post(
@@ -219,14 +219,19 @@ app.delete("/api/programs/:name", (req, res) => {
 
 app.get("/api/keystores", (req, res) => {
   try {
-    const keys = fs.readdirSync(KEYSTORE_DIR).filter(f => f.endsWith(".json"));
+    const keys = fs.readdirSync(KEYSTORE_DIR).filter(f => f.endsWith(".txt"));
 
     const result = keys.map(filename => {
       const filepath = path.join(KEYSTORE_DIR, filename);
-      const raw = JSON.parse(fs.readFileSync(filepath, "utf8"));
+      const encrypted = fs.readFileSync(filepath).toString()
+      const decrypted = encodePhase.decryptPhase(
+        process.env.ENCODE_SALT,
+        encrypted
+      );
+      const secret = new Uint8Array(JSON.parse(decrypted));
 
       // Solana keystore is usually just an array of secret key bytes
-      const keypair = Keypair.fromSecretKey(new Uint8Array(raw));
+      const keypair = Keypair.fromSecretKey(secret);
       const pubkey = keypair.publicKey.toBase58();
 
       return {
@@ -253,17 +258,23 @@ app.post("/api/generate-payer", (req, res) => {
     const safeName = name.replace(/[^a-zA-Z0-9_-]/g, "");
 
     const payer = Keypair.generate();
-    const secret = Array.from(payer.secretKey);
 
+    // serialize to string
+    const secretStr = JSON.stringify(Array.from(payer.secretKey));
     // Force filename to use given name
-    const fileName = `${safeName}.json`;
+    const fileName = `${safeName}.txt`;
     const filePath = path.join(KEYSTORE_DIR, fileName);
 
     if (fs.existsSync(filePath)) {
       return res.status(400).json({ error: `File ${fileName} already exists` });
     }
+    const encrypted = encodePhase.encryptPhase(
+      process.env.ENCODE_SALT,
+      secretStr
+    );
 
-    fs.writeFileSync(filePath, JSON.stringify(secret));
+
+    fs.writeFileSync(filePath, encrypted);
 
     return res.json({
       name: safeName,
@@ -297,7 +308,12 @@ app.post("/api/deploy/preview", async (req, res) => {
 
   try {
     // Load signer
-    const signerSecret = new Uint8Array(JSON.parse(fs.readFileSync(signerPath)));
+    const encrypted = fs.readFileSync(signerPath).toString()
+    const decrypted = encodePhase.decryptPhase(
+      process.env.ENCODE_SALT,
+      encrypted
+    );
+    const signerSecret = new Uint8Array(JSON.parse(decrypted));
     const signer = Keypair.fromSecretKey(signerSecret);
 
     const balanceLamports = await connection.getBalance(signer.publicKey);

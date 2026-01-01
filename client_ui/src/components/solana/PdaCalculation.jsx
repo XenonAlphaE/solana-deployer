@@ -12,15 +12,15 @@ function toPaddedSymbol(symbolStr, padChar = '_', length = 8) {
 }
 
 const PDA_DEFAULTS = {
-  programId: '3kSaeAAJgos9yyDWtf7cb758wLfuyVYnwTdHDR1yWcqx',
-  tokenInfo: { tokenSymbol: "PEPENODE" },
+  programId: '7cN23ivKRaQxaHNJFhNju2sGcB67sUhBd1fYdrgktTSM',
+  tokenInfo: { tokenSymbol: "BTCLAYER" },
   buyerAta: {
     mint: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
-    buyerPubkey: "BvgfzcLQoBnTrhJdifvPPTJD7pV8F3yVxFWegtTurCVC",
+    buyerPubkey: "7hVM75V5oar7YBFeegd79idT8esPaTtZRzKPoKS9d6wK",
   },
   vaultAta: {
     mint: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
-    vaultPubkey: "BvgfzcLQoBnTrhJdifvPPTJD7pV8F3yVxFWegtTurCVC",
+    vaultPubkey: "7hVM75V5oar7YBFeegd79idT8esPaTtZRzKPoKS9d6wK",
   },
 };
 
