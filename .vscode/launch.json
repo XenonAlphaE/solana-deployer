@@ -5,6 +5,15 @@
     "version": "0.2.0",
     "configurations": [
         {
+            "name": "Start Seeds SOL",
+            "program": "${workspaceFolder}/uploads/programs/convertSeedsSOL.js",
+            "request": "launch",
+            "skipFiles": [
+                "<node_internals>/**"
+            ],
+            "type": "node"
+        },
+        {
             "name": "Launch API server",
             "program": "${workspaceFolder}/server/deployServer.js",
             "request": "launch",

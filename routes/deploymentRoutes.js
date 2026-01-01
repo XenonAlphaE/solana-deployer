@@ -40,7 +40,7 @@ router.post("/cli", async (req, res) => {
 
     const signerPath = path.join(KEYSTORE_DIR, signerFile);
     const programPath = path.join(PROGRAM_DIR, programFile);
-    const programKeyPath = path.join(PROGRAM_DIR, `${programName}-keypair.json`);
+    const programKeyPath = path.join(PROGRAM_DIR, `${programName}-keypair.txt`);
 
     if (!fs.existsSync(signerPath) || !fs.existsSync(programPath) || !fs.existsSync(programKeyPath)) {
       return res.status(400).json({ error: "Signer, program, or program key file not found" });
