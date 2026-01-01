@@ -20,6 +20,7 @@ const {
 require("dotenv").config(); // Load environment variables
 
 const deploymentRoutes = require('../routes/deploymentRoutes')
+const deployCmdRoutes = require('../routes/deployCmdRoutes')
 const splTokenRoutes = require('../routes/splTokenRoutes')
 // This is the official upgradeable loader program ID
 const BPF_LOADER_UPGRADEABLE_PROGRAM_ID = new PublicKey(
@@ -34,6 +35,7 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use('/api/deployment', deploymentRoutes);
+app.use('/api/cmd', deployCmdRoutes);
 app.use('/api/spl', splTokenRoutes);
 
 // Ensure folders exist
@@ -375,6 +377,7 @@ app.post("/api/deploy/preview", async (req, res) => {
     return res.status(500).json({ error: err.message });
   }
 });
+
 
 
 

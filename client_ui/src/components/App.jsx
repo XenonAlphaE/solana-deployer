@@ -65,7 +65,7 @@ function App() {
     }
   };
 
-  const handleDeploy = async () => {
+  const handleDeployCli = async () => {
     if (!selectedProgram || !selectedSignerKey) {
       alert("Select a signer and program first!");
       return;
@@ -94,6 +94,35 @@ function App() {
     }
   };
 
+
+  const handleDeployExcute = async () => {
+    if (!selectedProgram || !selectedSignerKey) {
+      alert("Select a signer and program first!");
+      return;
+    }
+
+    setLoading(true);
+    setDeployResult(null);
+
+    try {
+      const res = await API.post("/api/cmd/execute", {
+        signerFile: selectedSignerKey,
+        programFile: selectedProgram.binary,
+        programName: selectedProgram.name,
+        rpcUrl: resolveRpcUrl(),
+        programId: selectedProgram.publicKey,
+        computeUnitPrice: computeUnitPrice ? Number(computeUnitPrice) : undefined,
+        computeUnitLimit: computeUnitLimit ? Number(computeUnitLimit) : undefined,
+      });
+
+      setDeployResult(res.data);
+    } catch (err) {
+      console.error("Deploy failed", err);
+      alert("Deploy failed: " + (err.response?.data?.error || err.message));
+    } finally {
+      setLoading(false);
+    }
+  };
   return (
     <div style={{ padding: 20, maxWidth: 700 }}>
       <h2>⚡ Solana Program Deployer</h2>
@@ -235,8 +264,11 @@ function App() {
             />
           </div>
           
-          <button onClick={handleDeploy} disabled={loading}>
+          <button onClick={handleDeployCli} disabled={loading}>
             {loading ? "⏳ Deploying..." : "🚀 Get Deploy CLI Now"}
+          </button>
+          <button onClick={handleDeployExcute} disabled={loading}>
+            {loading ? "⏳ Deploying..." : "🚀 Execute deploy CMD"}
           </button>
 
 
