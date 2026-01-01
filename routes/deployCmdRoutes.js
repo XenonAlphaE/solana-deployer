@@ -172,6 +172,28 @@ function extractSeedPhrase(stderr) {
 //   }
 // }
 
+function recoverBufferKeypair(seed) {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "solana-buffer-"));
+  const keypairPath = path.join(tmpDir, "buffer.json");
+
+  spawnSync(
+    "solana-keygen",
+    ["recover", "-o", keypairPath, "--force"],
+    {
+      input: seed + "\n",
+      stdio: ["pipe", "inherit", "inherit"]
+    }
+  );
+
+  const secret = JSON.parse(fs.readFileSync(keypairPath, "utf8"));
+  const kp = Keypair.fromSecretKey(Uint8Array.from(secret));
+
+  return {
+    keypairPath,
+    bufferPubkey: kp.publicKey.toBase58(),
+    tmpDir
+  };
+}
 
 router.post("/execute", async (req, res) => {
   const { signerFile, programFile, programName, rpcUrl, computeUnitPrice, programId } = req.body;
@@ -266,5 +288,70 @@ router.post("/execute", async (req, res) => {
     tmpDirs.forEach(dir => fs.rmSync(dir, { recursive: true, force: true }));
   }
 });
+
+
+router.post("/resume", async (req, res) => {
+  const {
+    recoveryFile,
+    signerFile,
+    programFile,
+    computeUnitPrice
+  } = req.body;
+
+  let tmpDirs = [];
+
+  try {
+    const recovery = JSON.parse(
+      fs.readFileSync(path.join(RECOVERY_DIR, recoveryFile), "utf8")
+    );
+
+    const { seed, programId, rpcUrl } = recovery;
+
+    const buffer = recoverBufferKeypair(seed);
+    tmpDirs.push(buffer.tmpDir);
+
+    const payerKP = writeTempKeypair(
+      path.join(KEYSTORE_DIR, signerFile),
+      process.env.ENCODE_SALT,
+      "payer"
+    );
+    tmpDirs.push(payerKP.tmpDir);
+
+    const programPath = path.join(PROGRAM_DIR, programFile);
+
+    const args = [
+      "program",
+      "deploy",
+      "--url",
+      rpcUrl,
+      "--program-id",
+      programId,
+      "--buffer",
+      buffer.bufferPubkey,
+      "--fee-payer",
+      payerKP.keypairPath,
+      "--upgrade-authority",
+      payerKP.keypairPath
+    ];
+
+    if (computeUnitPrice) {
+      args.push("--with-compute-unit-price", computeUnitPrice.toString());
+    }
+
+    args.push(programPath);
+
+    await deployProgramCLI({
+      args,
+      payerKeypairPath: payerKP.keypairPath
+    });
+
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  } finally {
+    tmpDirs.forEach(d => fs.rmSync(d, { recursive: true, force: true }));
+  }
+});
+
 
 module.exports = router;

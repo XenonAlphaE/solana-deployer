@@ -14,12 +14,54 @@ const {
 } = require("@solana/web3.js");
 const bip39 = require("bip39");
 const { derivePath } = require("ed25519-hd-key");
+const { decryptPhase } = require("../utils/encodePhase");
+const os = require("os");
+
+const TMP_BASE = path.join(os.tmpdir(), "solana-cli");
 
 
 
 const router = express.Router();
 const KEYSTORE_DIR = path.join(process.cwd(),  "uploads", "keystores");
 const PROGRAM_DIR = path.join(process.cwd(), "uploads","programs");
+
+function ensureTempKeypair(encryptedPath, password, label) {
+  if (!fs.existsSync(TMP_BASE)) {
+    fs.mkdirSync(TMP_BASE, { recursive: true, mode: 0o700 });
+  }
+
+
+  const tmpPath = path.join(TMP_BASE, `${label}.json`);
+
+  // ✅ idempotent: reuse if valid
+  if (fs.existsSync(tmpPath)) {
+    try {
+      const data = JSON.parse(fs.readFileSync(tmpPath, "utf8"));
+      Keypair.fromSecretKey(new Uint8Array(data)); // validate
+      return tmpPath;
+    } catch {
+      fs.unlinkSync(tmpPath); // corrupted → regenerate
+    }
+  }
+
+  const encrypted = fs.readFileSync(encryptedPath, "utf8");
+  const decrypted = decryptPhase(
+    password,
+    encrypted
+  );
+
+
+  // 🔓 decrypt
+  const secret = new Uint8Array(JSON.parse(decrypted));
+
+  // validate before writing
+  Keypair.fromSecretKey(secret);
+
+  fs.writeFileSync(tmpPath, decrypted, { mode: 0o600 });
+
+  return tmpPath;
+}
+
 
 router.post("/cli", async (req, res) => {
   const { signerFile, programFile, programName, rpcUrl, computeUnitPrice, programId , computeUnitLimit} = req.body;
@@ -46,6 +88,20 @@ router.post("/cli", async (req, res) => {
       return res.status(400).json({ error: "Signer, program, or program key file not found" });
     }
 
+
+    const tempProgramKey = ensureTempKeypair(
+      programKeyPath,
+      process.env.ENCODE_SALT,
+      programName
+    );
+
+    const tempSignerKey = ensureTempKeypair(
+      signerPath,
+      process.env.ENCODE_SALT,
+      signerFile
+    );
+
+
     // Build CLI args
     const args = [
       "program",
@@ -55,11 +111,11 @@ router.post("/cli", async (req, res) => {
       "--max-sign-attempts",
       "60",
       "--program-id",
-      programKeyPath,
+      tempProgramKey,
       "--fee-payer",
-      signerPath,
+      tempSignerKey,
       "--upgrade-authority",
-      signerPath,
+      tempSignerKey,
     ];
 
     if (computeUnitPrice) args.push("--with-compute-unit-price", computeUnitPrice.toString());
@@ -75,22 +131,23 @@ router.post("/cli", async (req, res) => {
 
     res.json({
       cliCommands: {
+        note:"the privkey is encrypted by default, this tmp file key is plaintext for privkey using with cmd running and need to be clear afterwards.",
         deploy: deployCmd,
         logs: logsCmd,
         account: accountCmd,
         show: `solana program show --url ${endpoint} ${programId}`,
-
+        removeCliTmpKeys: `rm -fv "$(getconf DARWIN_USER_TEMP_DIR)solana-cli/"*.json`,
         // 🔥 New failure handling helpers
         recoverBuffer: `solana-keygen recover -o buffer.json; then enter  "<12-word-seed-from-error>" from deployment fail to get private for buffer`,
         bufferPubkey: `solana-keygen pubkey buffer.json`,
         inspectBuffer: `solana account <BUFFER_PUBKEY> --url ${endpoint}`,
         closeBuffer: `solana program close <BUFFER_PUBKEY>  (((--recipient <YOUR_MAIN_WALLET>))) --keypair <AUTHORITY_OF_BUFFER> --url ${endpoint} ; if not recipient, that will return to authority wallet`,
         resumeDeploy: `solana program deploy \
-          --program-id ${programKeyPath} \
+          --program-id ${tempProgramKey} \
           --buffer <BUFFER_KEYPAIR> \
-          --upgrade-authority ${signerPath} \
-          --fee-payer ${signerPath} \
-          --url ${endpoint} \
+          --upgrade-authority ${tempSignerKey} \
+          --fee-payer ${tempSignerKey} \
+          --url ${tempSignerKey} \
           ${programPath}`
       },
     });
@@ -117,78 +174,6 @@ router.post("/cli", async (req, res) => {
   }
 });
 
-
-// ----------------------------
-// Recover buffer.json from seed
-// ----------------------------
-router.post("/buffer/recover", async (req, res) => {
-  const { seedPhrase, programName } = req.body;
-
-  try {
-    if (!seedPhrase || !programName) {
-      return res.status(400).json({ error: "Missing seed phrase" });
-    }
-
-    const seed = await bip39.mnemonicToSeed(seedPhrase.trim());
-    const derived = derivePath("m/44'/501'/0'/0'", seed.toString("hex")).key;
-    const keypair = Keypair.fromSeed(derived);
-
-    const filePath = path.join(PROGRAM_DIR, `${programName}-buffer.json`);
-    fs.writeFileSync(filePath, JSON.stringify(Array.from(keypair.secretKey)));
-
-    res.json({
-      success: true,
-      bufferFile: filePath,
-      pubkey: keypair.publicKey.toBase58(),
-    });
-  } catch (err) {
-    console.error("Buffer recover failed:", err);
-    res.status(500).json({ error: err.message });
-  }
-});
-
-
-// ----------------------------
-// Close or Resume buffer deploy
-// ----------------------------
-router.post("/buffer/handle", async (req, res) => {
-  const { action, bufferFile, bufferPubkey, programId, signerFile, rpcUrl, programPath } = req.body;
-
-  try {
-    const endpoint = rpcUrl || "https://api.devnet.solana.com";
-
-    if (!fs.existsSync(bufferFile)) {
-      return res.status(400).json({ error: "Buffer keypair file not found" });
-    }
-
-    if (action === "close") {
-      const closeCmd = `solana program close ${bufferPubkey} --recipient <YOUR_MAIN_WALLET> --keypair ${bufferFile} --url ${endpoint}`;
-      return res.json({ action: "close", cliCommand: closeCmd });
-    }
-
-    if (action === "resume") {
-      if (!programId || !signerFile || !programPath) {
-        return res.status(400).json({ error: "Missing programId, signerFile, or programPath for resume" });
-      }
-
-      const resumeCmd = `solana program deploy \
-        --program-id ${programId} \
-        --buffer ${bufferPubkey} \
-        --buffer-signer ${bufferFile} \
-        --upgrade-authority ${signerFile} \
-        --fee-payer ${signerFile} \
-        --url ${endpoint} \
-        ${programPath}`;
-
-      return res.json({ action: "resume", cliCommand: resumeCmd });
-    }
-
-    return res.status(400).json({ error: "Invalid action, must be 'close' or 'resume'" });
-  } catch (err) {
-    console.error("Buffer handler failed:", err);
-    res.status(500).json({ error: err.message });
-  }
-});
 
 
 module.exports = router;
