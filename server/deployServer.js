@@ -30,6 +30,7 @@ const app = express();
 const PORT = 10001;
 const KEYSTORE_DIR = path.join(process.cwd(),  "uploads", "keystores");
 const PROGRAM_DIR = path.join(process.cwd(), "uploads","programs");
+const RECOVERY_DIR = path.join(process.cwd(), "recoverykeys");
 
 app.use(cors());
 app.use(express.json());
@@ -41,6 +42,7 @@ app.use('/api/spl', splTokenRoutes);
 // Ensure folders exist
 fs.mkdirSync(KEYSTORE_DIR, { recursive: true });
 fs.mkdirSync(PROGRAM_DIR, { recursive: true });
+fs.mkdirSync(RECOVERY_DIR, { recursive: true });
 
 // Storage for keystores (payer)
 const keystoreStorage = multer.diskStorage({

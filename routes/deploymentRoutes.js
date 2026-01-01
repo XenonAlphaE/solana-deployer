@@ -22,7 +22,7 @@ const KEYSTORE_DIR = path.join(process.cwd(),  "uploads", "keystores");
 const PROGRAM_DIR = path.join(process.cwd(), "uploads","programs");
 
 router.post("/cli", async (req, res) => {
-  const { signerFile, programFile, programName, rpcUrl, computeUnitPrice, programId } = req.body;
+  const { signerFile, programFile, programName, rpcUrl, computeUnitPrice, programId , computeUnitLimit} = req.body;
 
   try {
     if (!signerFile || !programFile || !programId) {
@@ -81,14 +81,13 @@ router.post("/cli", async (req, res) => {
         show: `solana program show --url ${endpoint} ${programId}`,
 
         // 🔥 New failure handling helpers
-        recoverBuffer: `solana-keygen recover -o buffer.json "<12-word-seed-from-error>"`,
+        recoverBuffer: `solana-keygen recover -o buffer.json; then enter  "<12-word-seed-from-error>" from deployment fail to get private for buffer`,
         bufferPubkey: `solana-keygen pubkey buffer.json`,
         inspectBuffer: `solana account <BUFFER_PUBKEY> --url ${endpoint}`,
-        closeBuffer: `solana program close <BUFFER_PUBKEY> --recipient <YOUR_MAIN_WALLET> --keypair buffer.json --url ${endpoint}`,
+        closeBuffer: `solana program close <BUFFER_PUBKEY>  (((--recipient <YOUR_MAIN_WALLET>))) --keypair <AUTHORITY_OF_BUFFER> --url ${endpoint} ; if not recipient, that will return to authority wallet`,
         resumeDeploy: `solana program deploy \
           --program-id ${programKeyPath} \
-          --buffer <BUFFER_PUBKEY> \
-          --buffer-signer buffer.json \
+          --buffer <BUFFER_KEYPAIR> \
           --upgrade-authority ${signerPath} \
           --fee-payer ${signerPath} \
           --url ${endpoint} \

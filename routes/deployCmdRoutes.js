@@ -18,9 +18,11 @@ const {
   PublicKey,
 } = require("@solana/web3.js");
 const { decryptPhase, encryptPhase } = require("../utils/encodePhase");
+const SessionLogger = require("../utils/logger");
 const router = express.Router();
 const KEYSTORE_DIR = path.join(process.cwd(),  "uploads", "keystores");
 const PROGRAM_DIR = path.join(process.cwd(), "uploads","programs");
+const RECOVERY_DIR = path.join(process.cwd(), "recoverykeys");
 
 
 
@@ -53,6 +55,8 @@ function deployProgramCLI({
   payerKeypairPath,
   onLog
 }) {
+  const logger = new SessionLogger()
+
   return new Promise((resolve, reject) => {
     const child = spawn(
       "solana",
@@ -66,25 +70,50 @@ function deployProgramCLI({
     );
 
     let stderr = "";
+    let stdoutBuffer = "";
+    let stderrBuffer = "";
 
-    child.stdout.on("data", d => onLog?.(d.toString()));
-    child.stderr.on("data", d => {
-      const msg = d.toString();
-      stderr += msg;
-      onLog?.(msg);
+
+    child.stdout.on("data", (d) => {
+      stdoutBuffer += d.toString();
+      logger.log(d.toString())
+
+      // stdoutBuffer = flushLines(stdoutBuffer, false);
     });
 
-    child.on("close", code => {
-      if (code === 0) resolve();
-      else reject(new Error(stderr));
+    child.stderr.on("data", (d) => {
+      stderrBuffer += d.toString();
+      logger.log(d.toString())
+      // stderrBuffer = flushLines(stderrBuffer, true);
     });
+
+    child.on("close", (code) => {
+      // flush remaining partial lines
+      if (stdoutBuffer.trim()) logger.log(stdoutBuffer);
+      if (stderrBuffer.trim()) {
+        logger.log(stderrBuffer);
+        stderr += stderrBuffer + "\n";
+      }
+
+      if (code === 0) {
+        resolve();
+      } else {
+        const err = new Error(`Solana deploy failed (exit ${code})\n${stderr}`);
+        err.exitCode = code;
+        reject(err);
+      }
+    });
+
+    child.on("error", reject);
   });
 }
+
 function saveRecoverySeed(seed, programName) {
+  const seedPath = path.join(PROGRAM_DIR, `${crypto.randomUUID()}-${programName}.seed.txt`);
+
   fs.writeFileSync(
-    `./recovery/${programName}.seed.txt`,
-    seed,
-    { mode: 0o600 }
+    seedPath,
+    seed
   );
 }
 
@@ -207,23 +236,20 @@ router.post("/execute", async (req, res) => {
 
     args.push(programPath);
 
-
     await deployProgramCLI({
         args,
         rpcUrl,
         programPath,
         programKeypairPath: programKP.keypairPath,
         payerKeypairPath: payerKP.keypairPath,
-        onLog: console.log
+        onLog: (line) => logger.log(line)
     });
 
-    console.log("✅ Deploy successful");
+    logger.log("✅ Deploy successful");
 
 
     res.json({
         success: true,
-        output: stdout,
-        cliCommands: { deploy: deployCmd, logs: logsCmd, account: accountCmd }
     });
     // });
   } catch (err) {
