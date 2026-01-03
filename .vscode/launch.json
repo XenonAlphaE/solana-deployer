@@ -14,6 +14,15 @@
             "type": "node"
         },
         {
+            "name": "Start Convert BS58",
+            "program": "${workspaceFolder}/base58-to-json.js",
+            "request": "launch",
+            "skipFiles": [
+                "<node_internals>/**"
+            ],
+            "type": "node"
+        },
+        {
             "name": "Launch API server",
             "program": "${workspaceFolder}/server/deployServer.js",
             "request": "launch",

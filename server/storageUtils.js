@@ -3,9 +3,7 @@ const path = require("path");
 const { encryptPhase } = require("../utils/encodePhase");
 
 
-const KEYSTORE_DIR = path.join(process.cwd(),  "uploads", "keystores");
-const PROGRAM_DIR = path.join(process.cwd(), "uploads","programs");
-
+const folderUtils = require('../utils/folderUtils')
 
 function resolveProgramFilename(req, file) {
   const baseName =
@@ -31,7 +29,7 @@ function resolveProgramFilename(req, file) {
 
 function saveProgramFile(req, file, password) {
   const filename = resolveProgramFilename(req, file);
-  const filePath = path.join(PROGRAM_DIR, filename);
+  const filePath = path.join(folderUtils.PROGRAM_DIR, filename);
 
   // 🔐 Encrypt ONLY keypair
   if (filename.endsWith("-keypair.txt")) {
@@ -52,8 +50,27 @@ function saveProgramFile(req, file, password) {
 }
 
 
+function saveKeystoreFile(filename, file, password) {
+  const filePath = path.join(folderUtils.KEYSTORE_DIR, `${filename}.txt`);
+
+ 
+    const plaintext = file.buffer.toString("utf8");
+
+    const encrypted = encryptPhase(password, plaintext);
+
+    fs.writeFileSync(
+      filePath,
+      encrypted,
+    );
+ 
+  return filename;
+}
+
+
+
 
 module.exports ={
   resolveProgramFilename,
-  saveProgramFile
+  saveProgramFile,
+  saveKeystoreFile
 }

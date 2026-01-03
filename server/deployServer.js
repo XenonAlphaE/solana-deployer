@@ -6,7 +6,7 @@ const fs = require("fs");
 const path = require("path");
 const { exec } = require("child_process");
 const { Keypair, Connection, sendAndConfirmTransaction } = require("@solana/web3.js");
-const { saveProgramFile } = require("./storageUtils"); // adjust path if needed
+const { saveProgramFile, saveKeystoreFile } = require("./storageUtils"); // adjust path if needed
 const encodePhase = require('../utils/encodePhase')
 const {
   PublicKey,
@@ -17,6 +17,7 @@ const {
   BpfLoader,
   ComputeBudgetProgram,
 } = require("@solana/web3.js");
+const folderUtils = require('../utils/folderUtils')
 require("dotenv").config(); // Load environment variables
 
 const deploymentRoutes = require('../routes/deploymentRoutes')
@@ -28,9 +29,6 @@ const BPF_LOADER_UPGRADEABLE_PROGRAM_ID = new PublicKey(
 );
 const app = express();
 const PORT = 10001;
-const KEYSTORE_DIR = path.join(process.cwd(),  "uploads", "keystores");
-const PROGRAM_DIR = path.join(process.cwd(), "uploads","programs");
-const RECOVERY_DIR = path.join(process.cwd(), "recoverykeys");
 
 app.use(cors());
 app.use(express.json());
@@ -40,16 +38,11 @@ app.use('/api/cmd', deployCmdRoutes);
 app.use('/api/spl', splTokenRoutes);
 
 // Ensure folders exist
-fs.mkdirSync(KEYSTORE_DIR, { recursive: true });
-fs.mkdirSync(PROGRAM_DIR, { recursive: true });
-fs.mkdirSync(RECOVERY_DIR, { recursive: true });
+folderUtils.creteaFolders()
 
-// Storage for keystores (payer)
-const keystoreStorage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, KEYSTORE_DIR),
-  filename: (req, file, cb) => cb(null, file.originalname),
-});
-const uploadKeystore = multer({ storage: keystoreStorage });
+const uploadKeystore = multer({ storage: multer.memoryStorage()  }).fields([
+  { name: "keystore", maxCount: 1 },   // expects .json file
+]);
 
 
 // Uploader that accepts 2 fields: program + keystore
@@ -61,9 +54,46 @@ const uploadProgramAndKey = multer({ storage: multer.memoryStorage()  }).fields(
 
 
 // Upload payer keystore
-// app.post("/api/keystore", uploadKeystore.single("keystore"), (req, res) => {
-//   res.json({ message: "Payer keystore uploaded", file: req.file });
-// });
+app.post("/api/keystore", 
+  uploadKeystore, 
+  (req, res) => {
+    try {
+        if (!req.files?.keystore) {
+          return res.status(400).json({
+            error: "keystore (.json) are required"
+          });
+        }
+
+        if (!process.env.ENCODE_SALT) {
+          return res.status(400).json({ error: "password is required" });
+        }
+
+        const { name } = req.body;
+
+        if (!name) {
+          return res.status(400).json({ error: "Missing required field: name" });
+        }
+
+
+        const files = {};
+
+        // keystore (encrypted)
+        files.keystore = saveKeystoreFile(
+          name,
+          req.files.keystore[0],
+          process.env.ENCODE_SALT
+        );
+
+        res.json({
+          message: "Upload successful",
+          files
+        });
+      } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: err.message });
+      }
+});
+
 
 // Upload program keypair (.json)
 app.post(
@@ -119,10 +149,9 @@ app.post(
 
 
 // List uploaded .so files
-
 app.get("/api/programs", (req, res) => {
   try {
-    const files = fs.readdirSync(PROGRAM_DIR);
+    const files = fs.readdirSync(folderUtils.PROGRAM_DIR);
 
     // Collect by extension
     const binaries = files.filter(f => f.endsWith(".so"));
@@ -138,7 +167,7 @@ app.get("/api/programs", (req, res) => {
     const common = binNames.filter(n => idNames.includes(n) && keyNames.includes(n));
 
     const rows = common.map(name => {
-      const keypairPath = path.join(PROGRAM_DIR, `${name}-keypair.txt`);
+      const keypairPath = path.join(folderUtils.PROGRAM_DIR, `${name}-keypair.txt`);
       let publicKey = null;
       
       try {
@@ -173,7 +202,7 @@ app.get("/api/programs", (req, res) => {
 
 app.get("/api/idl/:program", (req, res) => {
   const { program } = req.params;
-  const idlPath = path.join(PROGRAM_DIR, `${program}.json`);
+  const idlPath = path.join(folderUtils.PROGRAM_DIR, `${program}.json`);
   try {
     const idl = JSON.parse(fs.readFileSync(idlPath, "utf8"));
     res.json(idl);
@@ -193,9 +222,9 @@ app.delete("/api/programs/:name", (req, res) => {
 
   try {
     const filesToDelete = [
-      path.join(PROGRAM_DIR, `${name}.so`),
-      path.join(PROGRAM_DIR, `${name}-keypair.txt`),
-      path.join(PROGRAM_DIR, `${name}.json`),
+      path.join(folderUtils.PROGRAM_DIR, `${name}.so`),
+      path.join(folderUtils.PROGRAM_DIR, `${name}-keypair.txt`),
+      path.join(folderUtils.PROGRAM_DIR, `${name}.json`),
     ];
 
     let deleted = [];
@@ -223,10 +252,10 @@ app.delete("/api/programs/:name", (req, res) => {
 
 app.get("/api/keystores", (req, res) => {
   try {
-    const keys = fs.readdirSync(KEYSTORE_DIR).filter(f => f.endsWith(".txt"));
+    const keys = fs.readdirSync(folderUtils.KEYSTORE_DIR).filter(f => f.endsWith(".txt"));
 
     const result = keys.map(filename => {
-      const filepath = path.join(KEYSTORE_DIR, filename);
+      const filepath = path.join(folderUtils.KEYSTORE_DIR, filename);
       const encrypted = fs.readFileSync(filepath).toString()
       const decrypted = encodePhase.decryptPhase(
         process.env.ENCODE_SALT,
@@ -267,7 +296,7 @@ app.post("/api/generate-payer", (req, res) => {
     const secretStr = JSON.stringify(Array.from(payer.secretKey));
     // Force filename to use given name
     const fileName = `${safeName}.txt`;
-    const filePath = path.join(KEYSTORE_DIR, fileName);
+    const filePath = path.join(folderUtils.KEYSTORE_DIR, fileName);
 
     if (fs.existsSync(filePath)) {
       return res.status(400).json({ error: `File ${fileName} already exists` });
@@ -300,8 +329,8 @@ app.post("/api/deploy/preview", async (req, res) => {
     return res.status(400).json({ error: "Missing params" });
   }
 
-  const signerPath = path.join(KEYSTORE_DIR, signerFile);
-  const programPath = path.join(PROGRAM_DIR, programFile);
+  const signerPath = path.join(folderUtils.KEYSTORE_DIR, signerFile);
+  const programPath = path.join(folderUtils.PROGRAM_DIR, programFile);
 
   if (!fs.existsSync(signerPath) || !fs.existsSync(programPath)) {
     return res.status(400).json({ error: "Missing signer or program file" });

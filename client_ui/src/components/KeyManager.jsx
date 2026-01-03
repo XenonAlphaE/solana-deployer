@@ -15,6 +15,7 @@ export default function KeyManager() {
     if (!keyFile) return alert("Please select a file first.");
     const formData = new FormData();
     formData.append("keystore", keyFile);
+    formData.append("name", payerName);
 
     const res = await API.post("/api/keystore", formData);
     alert(`Uploaded: ${JSON.stringify(res.data)}`);
@@ -42,6 +43,12 @@ export default function KeyManager() {
       {/* Upload existing keypair */}
       <div>
         <h5>Upload Keypair (.json)</h5>
+        <input
+          type="text"
+          placeholder="Enter name (e.g. mypayer)"
+          value={payerName}
+          onChange={(e) => setPayerName(e.target.value)}
+        />
         <input
           type="file"
           accept=".json"
