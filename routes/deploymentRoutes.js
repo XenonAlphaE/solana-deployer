@@ -64,7 +64,7 @@ function ensureTempKeypair(encryptedPath, password, label) {
 
 
 router.post("/cli", async (req, res) => {
-  const { signerFile, programFile, programName, rpcUrl, computeUnitPrice, programId , computeUnitLimit} = req.body;
+  const { signerFile, programFile, programName, rpcUrl, computeUnitPrice, programId ,   authorityFile} = req.body;
 
   try {
     if (!signerFile || !programFile || !programId) {
@@ -83,6 +83,13 @@ router.post("/cli", async (req, res) => {
     const signerPath = path.join(KEYSTORE_DIR, signerFile);
     const programPath = path.join(PROGRAM_DIR, programFile);
     const programKeyPath = path.join(PROGRAM_DIR, `${programName}-keypair.txt`);
+    const authorityPath = authorityFile
+      ? path.join(KEYSTORE_DIR, authorityFile)
+      : signerPath;
+
+    if (!fs.existsSync(authorityPath)) {
+      return res.status(400).json({ error: "Authority key file not found" });
+    }
 
     if (!fs.existsSync(signerPath) || !fs.existsSync(programPath) || !fs.existsSync(programKeyPath)) {
       return res.status(400).json({ error: "Signer, program, or program key file not found" });
@@ -101,7 +108,11 @@ router.post("/cli", async (req, res) => {
       signerFile
     );
 
-
+    const tempAuthorityKey = ensureTempKeypair(
+      authorityPath,
+      process.env.ENCODE_SALT,
+      authorityFile || signerFile
+    );
     // Build CLI args
     const args = [
       "program",
@@ -115,7 +126,7 @@ router.post("/cli", async (req, res) => {
       "--fee-payer",
       tempSignerKey,
       "--upgrade-authority",
-      tempSignerKey,
+      tempAuthorityKey,
     ];
 
     if (computeUnitPrice) args.push("--with-compute-unit-price", computeUnitPrice.toString());
@@ -135,6 +146,7 @@ router.post("/cli", async (req, res) => {
         deploy: deployCmd,
         logs: logsCmd,
         account: accountCmd,
+        authority: authorityFile || signerFile,
         show: `solana program show --url ${endpoint} ${programId}`,
         removeCliTmpKeys: `rm -fv "$(getconf DARWIN_USER_TEMP_DIR)solana-cli/"*.json`,
         // 🔥 New failure handling helpers
@@ -145,7 +157,7 @@ router.post("/cli", async (req, res) => {
         resumeDeploy: `solana program deploy \
           --program-id ${tempProgramKey} \
           --buffer <BUFFER_KEYPAIR> \
-          --upgrade-authority ${tempSignerKey} \
+          --upgrade-authority ${tempAuthorityKey} \
           --fee-payer ${tempSignerKey} \
           --url ${tempSignerKey} \
           ${programPath}`

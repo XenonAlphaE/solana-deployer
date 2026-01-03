@@ -13,7 +13,7 @@ import PDACalculator from "./solana/PdaCalculation";
 import CustomizedMethods from "./CustomizedMethods";
 
 function App() {
-  const { availablePrograms, loadLists, selectedSignerKey , selectedProgram, setSelectedProgram} = useAppContext();
+  const { availablePrograms, loadLists, selectedSignerKey , selectedProgram, selectedAuthorityKey, setSelectedProgram} = useAppContext();
 
   const [rpc, setRpc] = useState("devnet");
   const [customRpc, setCustomRpc] = useState("");
@@ -30,6 +30,7 @@ function App() {
   }, []);
 
   const resolveRpcUrl = () => {
+    debugger
     if (rpc === "devnet") return "https://api.devnet.solana.com";
     if (rpc === "testnet") return "https://api.testnet.solana.com";
     if (rpc === "mainnet") return "https://api.mainnet-beta.solana.com";
@@ -38,7 +39,7 @@ function App() {
   };
 
   const handlePreview = async () => {
-    if (!selectedProgram || !selectedSignerKey) {
+    if (!selectedProgram || !selectedSignerKey || !selectedAuthorityKey) {
       alert("Select a signer and program first!");
       return;
     }
@@ -66,8 +67,8 @@ function App() {
   };
 
   const handleDeployCli = async () => {
-    if (!selectedProgram || !selectedSignerKey) {
-      alert("Select a signer and program first!");
+    if (!selectedProgram || !selectedSignerKey || !selectedAuthorityKey) {
+      alert("Select a signer and program first , authority!");
       return;
     }
 
@@ -75,10 +76,12 @@ function App() {
     setDeployResult(null);
 
     try {
+      debugger
       const res = await API.post("/api/deployment/cli", {
         signerFile: selectedSignerKey,
         programFile: selectedProgram.binary,
         programName: selectedProgram.name,
+        authorityFile: selectedAuthorityKey,
         rpcUrl: resolveRpcUrl(),
         programId: selectedProgram.publicKey,
         computeUnitPrice: computeUnitPrice ? Number(computeUnitPrice) : undefined,

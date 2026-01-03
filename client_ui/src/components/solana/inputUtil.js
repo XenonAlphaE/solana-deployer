@@ -60,7 +60,8 @@ export function parseIdlValue(text, typeDef) {
     if (innerType === "u8") {
       // For token symbols, pad/trim to length
       const buf = Buffer.alloc(len);
-      const inputBuf = Buffer.from(text, "utf8");
+      const arr = JSON.parse(text)
+      const inputBuf = Buffer.from(arr);
       inputBuf.copy(buf, 0, 0, Math.min(len, inputBuf.length));
       return [...buf];
     }

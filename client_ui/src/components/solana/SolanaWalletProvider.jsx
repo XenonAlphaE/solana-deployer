@@ -33,17 +33,29 @@ function getRandomItemFromArray(input, defaultValue = null) {
 
 export const SolanaWalletProvider = ({ children }) => {
   // The network can be set to 'devnet', 'testnet', or 'mainnet-beta'
-  const network = WalletAdapterNetwork.Mainnet;
+  // const network = WalletAdapterNetwork.Mainnet;
 
   // You can also provide a custom RPC endpoint
-  const endpoint = useMemo(() => getRandomItemFromArray(
-    [
-      clusterApiUrl(network),
-        "https://solana-mainnet.gateway.tatum.io?apiKey=t-68022a161d6adc97b405eb25-25e1aae7d44a4547a7c0ae38",
-        "https://muddy-wider-patina.solana-mainnet.quiknode.pro/568cabf5f00a3439934ac00ad5d411fb74db5935",
-        "https://solana-mainnet.api.syndica.io/api-key/38SE3KS6MeKGTC1CtsUQpZPG9oRs3Xty5ZG6B48u6WTK2PCv6MRqpbSAQx8x8J1fMyTZh5Kvahgye3Fc61Ec4HC6gt16nj3t66X"
-    ]
-  ), [network]);
+  // const endpoint = useMemo(() => getRandomItemFromArray(
+  //   [
+  //     clusterApiUrl(network),
+      // "https://go.getblock.us/a2284a3e911549ffa562b421e16cd432",
+      // "https://go.getblock.us/c3aec99ad5454bbd80b37defd30c9614",
+      // "https://go.getblock.us/62d6be763288468bb5c88c2b25e37604",
+      // "https://go.getblock.us/644d658f5cd34a489a6223e1a3597bbf"
+  //   ]
+  // ), [network]);
+
+  const endpoint = useMemo(
+    () =>
+      getRandomItemFromArray([
+        clusterApiUrl(WalletAdapterNetwork.Devnet),
+        "https://api.devnet.solana.com",
+        // optional backup devnet RPCs
+      ]),
+    []
+  );
+
 
   return (
     <ConnectionProvider endpoint={endpoint}>

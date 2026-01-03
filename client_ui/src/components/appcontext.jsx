@@ -11,6 +11,7 @@ export function AppContextProvider({ children }) {
 
   const [selectedProgram, setSelectedProgram] = useState("");
   const [selectedSignerKey, setSelectedSignerKey] = useState("");
+  const [selectedAuthorityKey, setAuthorityKey] = useState("");
 
 
   const loadLists = useCallback(async () => {
@@ -28,6 +29,7 @@ export function AppContextProvider({ children }) {
     availableKeys, setAvailableKeys,
     selectedProgram, setSelectedProgram,
     selectedSignerKey, setSelectedSignerKey,
+    selectedAuthorityKey, setAuthorityKey,
     loadLists
     // add API calls or helpers here too
   };

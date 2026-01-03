@@ -7,7 +7,7 @@ export default function KeyManager() {
   const [keyFile, setKeyFile] = useState(null);
   const [payerName, setPayerName] = useState("");
 
-  const { availableKeys, selectedSignerKey, setSelectedSignerKey, loadLists } =
+  const { availableKeys, selectedSignerKey, setSelectedSignerKey, loadLists, selectedAuthorityKey, setAuthorityKey } =
     useAppContext();
 
   // Upload existing keypair
@@ -50,6 +50,8 @@ export default function KeyManager() {
         <button onClick={handleUploadKey}>Upload Keypair</button>
       </div>
 
+
+  
       {/* Generate new keypair */}
       <div>
         <h5>Generate New Payer</h5>
@@ -61,6 +63,9 @@ export default function KeyManager() {
         />
         <button onClick={handleGenerateKey}>Generate Payer</button>
       </div>
+
+
+    
 
       {/* Table of available keys */}
       <div>
@@ -102,16 +107,70 @@ export default function KeyManager() {
           </tbody>
         </table>
       </div>
-
       {selectedSignerKey && (
         <p>
-          Selected Public Key:{" "}
+          Selected Singer Public Key:{" "}
           {
             availableKeys.find((x) => x.filename === selectedSignerKey)
               ?.publicKey
           }
         </p>
       )}
+
+
+      {/* Select Upgrade Authority */}
+      <div>
+        <h5>Select Upgrade Authority</h5>
+
+        <table style={{ width: "100%", borderCollapse: "collapse" }}>
+          <thead>
+            <tr>
+              <th style={{ border: "1px solid #ddd", padding: "8px" }}>Select</th>
+              <th style={{ border: "1px solid #ddd", padding: "8px" }}>Filename</th>
+              <th style={{ border: "1px solid #ddd", padding: "8px" }}>Public Key</th>
+            </tr>
+          </thead>
+          <tbody>
+            {availableKeys.map((item) => (
+              <tr key={`authority-${item.filename}`}>
+                <td
+                  style={{
+                    border: "1px solid #ddd",
+                    padding: "8px",
+                    textAlign: "center",
+                  }}
+                >
+                  <input
+                    type="radio"
+                    name="selectedAuthority"
+                    value={item.filename}
+                    checked={selectedAuthorityKey === item.filename}
+                    onChange={() => setAuthorityKey(item.filename)}
+                  />
+                </td>
+                <td style={{ border: "1px solid #ddd", padding: "8px" }}>
+                  {item.filename}
+                </td>
+                <td style={{ border: "1px solid #ddd", padding: "8px" }}>
+                  {item.publicKey}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+
+      </div>
+      {selectedAuthorityKey && (
+        <p>
+          Selected Singer Public Key:{" "}
+          {
+            availableKeys.find((x) => x.filename === selectedAuthorityKey)
+              ?.publicKey
+          }
+        </p>
+      )}
+
+
     </div>
   );
 }
