@@ -11,6 +11,7 @@ import CustomWalletButton from "./solana/CustomWalletButton";
 import MintTokenForm from "./MinToken";
 import PDACalculator from "./solana/PdaCalculation";
 import CustomizedMethods from "./CustomizedMethods";
+import { getRandomItemFromArray , mainRpcUrls} from './utils'
 
 function App() {
   const { availablePrograms, loadLists, selectedSignerKey , selectedProgram, selectedAuthorityKey, setSelectedProgram} = useAppContext();
@@ -29,11 +30,11 @@ function App() {
     loadLists();
   }, []);
 
+
   const resolveRpcUrl = () => {
-    debugger
     if (rpc === "devnet") return "https://api.devnet.solana.com";
     if (rpc === "testnet") return "https://api.testnet.solana.com";
-    if (rpc === "mainnet") return "https://api.mainnet-beta.solana.com";
+    if (rpc === "mainnet") return  "https://api.mainnet-beta.solana.com";
     if (rpc === "custom") return customRpc;
     return "https://api.devnet.solana.com";
   };

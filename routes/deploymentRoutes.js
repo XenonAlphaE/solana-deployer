@@ -134,7 +134,7 @@ router.post("/cli", async (req, res) => {
     args.push(programPath);
 
     // Deployment command
-    const deployCmd = `SOLANA_KEYPAIR="${signerPath}" solana ${args.map(a => `"${a}"`).join(" ")}`;
+    const deployCmd = `SOLANA_KEYPAIR="${signerPath}" solana ${args.map(a => `"${a}"`).join(" ")} `;
 
     // Follow-up commands (logs + account info)
     const logsCmd = `solana logs --url ${endpoint} ${programId}`;
@@ -154,13 +154,14 @@ router.post("/cli", async (req, res) => {
         bufferPubkey: `solana-keygen pubkey buffer.json`,
         inspectBuffer: `solana account <BUFFER_PUBKEY> --url ${endpoint}`,
         closeBuffer: `solana program close <BUFFER_PUBKEY>  (((--recipient <YOUR_MAIN_WALLET>))) --keypair <AUTHORITY_OF_BUFFER> --url ${endpoint} ; if not recipient, that will return to authority wallet`,
-        resumeDeploy: `solana program deploy \
+        resumeDeploy: `
+          solana program deploy \
           --program-id ${tempProgramKey} \
           --buffer <BUFFER_KEYPAIR> \
           --upgrade-authority ${tempAuthorityKey} \
           --fee-payer ${tempSignerKey} \
           --url ${tempSignerKey} \
-          ${programPath}`
+          ${programPath} `
       },
     });
 

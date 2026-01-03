@@ -3,7 +3,7 @@ const path = require("path");
 
 const KEYSTORE_DIR = path.join(process.cwd(),  "uploads", "keystores");
 const PROGRAM_DIR = path.join(process.cwd(), "uploads","programs");
-const RECOVERY_DIR = path.join(process.cwd(), "recoverykeys");
+const RECOVERY_DIR = path.join(process.cwd(), "uploadkeys","recoverykeys");
 
 const creteaFolders = () => {
     // Ensure folders exist
