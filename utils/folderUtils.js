@@ -1,7 +1,7 @@
 const fs = require("fs");
 const path = require("path");
 
-const KEYSTORE_DIR = path.join(process.cwd(),  "uploads", "keystores");
+const KEYSTORE_DIR = path.join(process.cwd(),  "uploadkeys", "keystores");
 const PROGRAM_DIR = path.join(process.cwd(), "uploads","programs");
 const RECOVERY_DIR = path.join(process.cwd(), "uploadkeys","recoverykeys");
 
